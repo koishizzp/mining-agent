@@ -80,6 +80,7 @@ class ToolSettings:
     protrek_repo_root: Path = Path("/srv/ProTrek")
     protrek_weights_dir: Path = Path("/srv/ProTrek/weights/ProTrek_650M")
     foldseek_base_url: str = "http://127.0.0.1:8100"
+    tmux_bin: str = "tmux"
 
 
 @dataclass(frozen=True)
@@ -169,6 +170,7 @@ def load_settings(config_path: str | Path, env_path: str | Path | None = None) -
                 str(tools_raw.get("foldseek_base_url", "http://127.0.0.1:8100")),
             )
             or "http://127.0.0.1:8100",
+            tmux_bin=_env_text(env_data, "THERMO_TMUX_BIN", str(tools_raw.get("tmux_bin", "tmux"))) or "tmux",
         ),
         defaults=DefaultSettings(
             prefilter_min_length=_env_int(

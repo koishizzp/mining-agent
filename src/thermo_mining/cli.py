@@ -13,6 +13,15 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--run-name", required=True)
     run_parser.add_argument("--input-faa", required=True)
     run_parser.add_argument("--resume", action="store_true")
+
+    serve_parser = subparsers.add_parser("serve")
+    serve_parser.add_argument("--host", default=None)
+    serve_parser.add_argument("--port", type=int, default=None)
+    serve_parser.add_argument("--config", default="config/platform.example.yaml")
+
+    run_job_parser = subparsers.add_parser("run-job")
+    run_job_parser.add_argument("--run-dir", required=True)
+    run_job_parser.add_argument("--config", default="config/platform.example.yaml")
     return parser
 
 

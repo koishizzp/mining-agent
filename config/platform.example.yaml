@@ -24,6 +24,7 @@ tools:
   protrek_repo_root: /srv/ProTrek
   protrek_weights_dir: /srv/ProTrek/weights/ProTrek_650M
   foldseek_base_url: http://127.0.0.1:8100
+  tmux_bin: /usr/bin/tmux
 
 defaults:
   prefilter_min_length: 80
