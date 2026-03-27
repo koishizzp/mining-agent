@@ -1,0 +1,3 @@
+sample_id	protein_faa	metadata_json
+S01	inputs/S01.faa	{"environment":"hot_spring","temperature":"75C"}
+S02	inputs/S02.faa	{"environment":"hot_spring","temperature":"82C"}
