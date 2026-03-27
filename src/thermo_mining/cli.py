@@ -28,6 +28,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> dict[str, object] | None:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command in {"serve", "run-job"}:
+        parser.error(f"Command '{args.command}' is recognized but not implemented yet.")
     if args.command != "run":
         return None
     return run_pipeline(
