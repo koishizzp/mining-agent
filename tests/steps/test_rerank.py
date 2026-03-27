@@ -1,4 +1,4 @@
-from thermo_mining.reporting import build_summary_markdown
+from thermo_mining.reporting import build_summary_markdown, write_report_outputs
 from thermo_mining.steps.rerank import assign_tier, combine_stage_scores
 
 
@@ -31,3 +31,33 @@ def test_build_summary_markdown_reports_counts():
     assert "run_001" in markdown_text
     assert "Tier 1" in markdown_text
     assert "p1" in markdown_text
+
+
+def test_write_report_outputs_writes_ranked_artifacts(tmp_path):
+    combined_rows = [
+        {
+            "protein_id": "p1",
+            "thermo_score": 0.9,
+            "protrek_score": 0.8,
+            "foldseek_score": 0.6,
+            "origin_bonus": 0.05,
+            "final_score": 0.82,
+            "tier": "Tier 1",
+        },
+        {
+            "protein_id": "p2",
+            "thermo_score": 0.4,
+            "protrek_score": 0.7,
+            "foldseek_score": 0.0,
+            "origin_bonus": 0.0,
+            "final_score": 0.39,
+            "tier": "Tier 3",
+        },
+    ]
+
+    outputs = write_report_outputs(tmp_path, "run_001", combined_rows)
+
+    assert outputs["top_100_tsv"].exists()
+    assert outputs["top_1000_tsv"].exists()
+    assert outputs["summary_md"].exists()
+    assert "p1" in outputs["summary_md"].read_text(encoding="utf-8")

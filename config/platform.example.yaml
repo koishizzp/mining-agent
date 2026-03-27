@@ -1,0 +1,44 @@
+llm:
+  model: gpt-4o-mini
+  api_key: null
+  base_url: https://api.openai.com/v1
+
+runtime:
+  data_root: /mnt/disk2/thermo-inputs
+  runs_root: /mnt/disk4/thermo-runs
+
+service:
+  host: 127.0.0.1
+  port: 8000
+
+logging:
+  log_path: /mnt/disk4/thermo-runs/platform.log
+
+tools:
+  fastp_bin: /usr/bin/fastp
+  spades_bin: /usr/bin/spades.py
+  prodigal_bin: /usr/bin/prodigal
+  mmseqs_bin: /usr/bin/mmseqs
+  temstapro_bin: /opt/temstapro/bin/temstapro
+  protrek_python_bin: /opt/protrek/bin/python
+  protrek_repo_root: /srv/ProTrek
+  protrek_weights_dir: /srv/ProTrek/weights/ProTrek_650M
+  foldseek_base_url: http://127.0.0.1:8100
+
+defaults:
+  prefilter_min_length: 80
+  prefilter_max_length: 1200
+  prefilter_max_single_residue_fraction: 0.7
+  cluster_min_seq_id: 0.9
+  cluster_coverage: 0.8
+  cluster_threads: 64
+  thermo_top_fraction: 0.1
+  thermo_min_score: 0.5
+  protrek_query_texts:
+    - thermostable enzyme
+    - heat-stable protein
+  protrek_batch_size: 8
+  protrek_top_k: 50
+  foldseek_database: afdb50
+  foldseek_topk: 5
+  foldseek_min_tmscore: 0.6

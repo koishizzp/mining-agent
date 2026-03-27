@@ -1,4 +1,7 @@
 import argparse
+from pathlib import Path
+
+from .pipeline import run_pipeline
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -13,6 +16,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> dict[str, object] | None:
     parser = build_parser()
-    parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.command != "run":
+        return None
+    return run_pipeline(
+        config_path=Path(args.config),
+        run_name=args.run_name,
+        input_faa=Path(args.input_faa),
+        resume=args.resume,
+    )
