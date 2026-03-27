@@ -1,7 +1,26 @@
 import pytest
 
-from thermo_mining.cli import main
+from thermo_mining.cli import build_parser, main
 from thermo_mining.settings import load_settings
+
+
+def test_build_parser_accepts_control_plane_commands_with_explicit_flags():
+    parser = build_parser()
+
+    serve_args = parser.parse_args(
+        ["serve", "--host", "0.0.0.0", "--port", "9000", "--config", "config/platform.example.yaml"]
+    )
+    run_job_args = parser.parse_args(
+        ["run-job", "--run-dir", "/tmp/run_001", "--config", "config/platform.example.yaml"]
+    )
+
+    assert serve_args.command == "serve"
+    assert serve_args.host == "0.0.0.0"
+    assert serve_args.port == 9000
+    assert serve_args.config == "config/platform.example.yaml"
+    assert run_job_args.command == "run-job"
+    assert run_job_args.run_dir == "/tmp/run_001"
+    assert run_job_args.config == "config/platform.example.yaml"
 
 
 @pytest.mark.parametrize(
