@@ -1,0 +1,73 @@
+body {
+  margin: 0;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: linear-gradient(180deg, #f7f3eb 0%, #efe8d8 100%);
+  color: #1e241d;
+}
+
+.page-header {
+  padding: 24px 16px 8px;
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  grid-template-areas:
+    "chat plan"
+    "chat run"
+    "artifacts artifacts";
+  gap: 16px;
+  padding: 16px;
+}
+
+#chat-panel {
+  grid-area: chat;
+}
+
+#plan-panel {
+  grid-area: plan;
+}
+
+#run-panel {
+  grid-area: run;
+}
+
+#artifacts-panel {
+  grid-area: artifacts;
+}
+
+section,
+dialog {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(30, 36, 29, 0.12);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.panel-body,
+#file-browser-results {
+  min-height: 96px;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "chat"
+      "plan"
+      "run"
+      "artifacts";
+  }
+}

@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 from thermo_mining.cli import build_parser, main
 from thermo_mining.control_plane.run_store import read_active_run, set_active_run
@@ -25,18 +26,23 @@ def test_build_parser_accepts_control_plane_commands_with_explicit_flags():
     assert run_job_args.config == "config/platform.example.yaml"
 
 
-@pytest.mark.parametrize(
-    ("argv", "command"),
-    [
-        (["serve"], "serve"),
-    ],
-)
-def test_main_rejects_unimplemented_control_plane_commands(argv, command, capsys):
-    with pytest.raises(SystemExit) as exc_info:
-        main(argv)
+def test_cli_main_dispatches_serve_and_run_job(monkeypatch, tmp_path):
+    captured: dict[str, object] = {}
 
-    assert exc_info.value.code == 2
-    assert f"command '{command}' is recognized but not implemented yet".lower() in capsys.readouterr().err.lower()
+    monkeypatch.setattr(
+        "thermo_mining.cli.serve_app",
+        lambda config_path, host, port: captured.update({"serve": (config_path, host, port)}),
+    )
+    monkeypatch.setattr(
+        "thermo_mining.cli.run_job",
+        lambda run_dir, config_path=None: captured.update({"run_job": (run_dir, config_path)}),
+    )
+
+    main(["serve", "--config", "config/platform.example.yaml", "--host", "0.0.0.0", "--port", "9000"])
+    main(["run-job", "--config", "config/platform.example.yaml", "--run-dir", str(tmp_path / "run_001")])
+
+    assert captured["serve"][1:] == ("0.0.0.0", 9000)
+    assert str(tmp_path / "run_001") in str(captured["run_job"][0])
 
 
 def test_main_dispatches_run_job_and_clears_active_marker(tmp_path, monkeypatch):
