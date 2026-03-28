@@ -16,11 +16,7 @@ def create_run(payload: dict[str, object]) -> dict[str, object]:
 
     execution_plan_payload = payload["execution_plan"] if "execution_plan" in payload else payload
     base_plan = ExecutionPlan.model_validate(execution_plan_payload)
-    review_edits = payload.get("review_edits", {})
-    if not isinstance(review_edits, dict):
-        raise HTTPException(status_code=400, detail="review_edits must be an object")
-
-    plan = apply_review_edits(base_plan, review_edits) if review_edits else base_plan
+    plan = apply_review_edits(base_plan, payload.get("review_edits", {}))
     record = create_pending_run(settings.runtime.runs_root, plan)
     return {"run_id": record.run_id}
 
