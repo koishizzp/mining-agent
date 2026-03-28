@@ -4,6 +4,7 @@ from pathlib import Path
 
 from thermo_mining import __version__
 from thermo_mining.control_plane.run_store import write_runtime_state
+from thermo_mining.io_utils import read_fasta
 from thermo_mining.control_plane.upstream_steps import run_fastp_stage, run_prodigal_stage, run_spades_stage
 from thermo_mining.pipeline import _read_scores_tsv
 from thermo_mining.reporting import write_report_outputs
@@ -49,6 +50,24 @@ def _build_stage_dirs(run_dir: Path, stage_order: list[str]) -> dict[str, Path]:
         stage_name: run_dir / f"{index:02d}_{_STAGE_DIR_SUFFIXES[stage_name]}"
         for index, stage_name in enumerate(stage_order, start=1)
     }
+
+
+def _plan_override(plan: dict[str, object], key: str, default: object) -> object:
+    overrides = plan.get("parameter_overrides") or {}
+    if not isinstance(overrides, dict):
+        return default
+    return overrides.get(key, default)
+
+
+def _foldseek_manifest(input_faa: str | Path, stage_dir: str | Path) -> list[dict[str, str]]:
+    structures_dir = Path(stage_dir) / "structures"
+    return [
+        {
+            "protein_id": record.protein_id,
+            "pdb_path": str(structures_dir / f"{record.protein_id}.pdb"),
+        }
+        for record in read_fasta(input_faa)
+    ]
 
 
 def run_job(run_dir: str | Path) -> None:
@@ -105,9 +124,9 @@ def run_job(run_dir: str | Path) -> None:
                 prefilter_result = run_prefilter(
                     input_faa=current_input,
                     stage_dir=stage_dirs[stage_name],
-                    min_length=80,
-                    max_length=1200,
-                    max_single_residue_fraction=0.7,
+                    min_length=int(_plan_override(plan, "prefilter_min_length", 80)),
+                    max_length=int(_plan_override(plan, "prefilter_max_length", 1200)),
+                    max_single_residue_fraction=float(_plan_override(plan, "prefilter_max_single_residue_fraction", 0.7)),
                     software_version=__version__,
                 )
                 current_input = Path(prefilter_result["filtered_faa"])
@@ -133,8 +152,8 @@ def run_job(run_dir: str | Path) -> None:
                     temstapro_bin="temstapro",
                     model_dir="/models/temstapro/ProtTrans",
                     cache_dir="/tmp/temstapro_cache",
-                    top_fraction=0.1,
-                    min_score=0.5,
+                    top_fraction=float(_plan_override(plan, "thermo_top_fraction", 0.1)),
+                    min_score=float(_plan_override(plan, "thermo_min_score", 0.5)),
                     software_version=__version__,
                 )
                 current_input = Path(thermo_result["thermo_hits_faa"])
@@ -151,19 +170,19 @@ def run_job(run_dir: str | Path) -> None:
                     weights_dir="/srv/ProTrek/weights/ProTrek_650M",
                     query_texts=["thermostable enzyme"],
                     batch_size=8,
-                    top_k=50,
+                    top_k=int(_plan_override(plan, "protrek_top_k", 50)),
                     software_version=__version__,
                 )
                 continue
 
             if stage_name == "foldseek_confirm":
                 foldseek_result = run_foldseek_stage(
-                    structure_manifest=[],
+                    structure_manifest=_foldseek_manifest(current_input, stage_dirs[stage_name]),
                     stage_dir=stage_dirs[stage_name],
                     base_url="http://127.0.0.1:8100",
                     database="afdb50",
-                    topk=5,
-                    min_tmscore=0.6,
+                    topk=int(_plan_override(plan, "foldseek_topk", 5)),
+                    min_tmscore=float(_plan_override(plan, "foldseek_min_tmscore", 0.6)),
                     software_version=__version__,
                 )
                 continue
@@ -177,7 +196,7 @@ def run_job(run_dir: str | Path) -> None:
                     foldseek_rows=_read_scores_tsv(foldseek_result["foldseek_scores_tsv"]),
                     hot_spring_ids=set(),
                 )
-                write_report_outputs(stage_dirs[stage_name], run_dir.name, combined_rows)
+                write_report_outputs(run_dir / "reports", run_dir.name, combined_rows)
                 continue
 
             raise ValueError(f"unsupported stage '{stage_name}'")
