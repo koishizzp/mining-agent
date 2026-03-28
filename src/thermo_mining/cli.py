@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from .control_plane import runner as control_plane_runner
+from .control_plane.run_store import clear_active_run
 from .pipeline import run_pipeline
 
 
@@ -27,7 +28,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_job(run_dir: str | Path) -> None:
-    control_plane_runner.run_job(Path(run_dir))
+    run_dir_path = Path(run_dir)
+    runs_root = run_dir_path.parent
+    try:
+        control_plane_runner.run_job(run_dir_path)
+    finally:
+        clear_active_run(runs_root)
 
 
 def main(argv: list[str] | None = None) -> dict[str, object] | None:

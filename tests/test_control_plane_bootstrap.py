@@ -2,6 +2,7 @@ import pytest
 from pathlib import Path
 
 from thermo_mining.cli import build_parser, main
+from thermo_mining.control_plane.run_store import read_active_run, set_active_run
 from thermo_mining.settings import load_settings
 
 
@@ -38,19 +39,37 @@ def test_main_rejects_unimplemented_control_plane_commands(argv, command, capsys
     assert f"command '{command}' is recognized but not implemented yet".lower() in capsys.readouterr().err.lower()
 
 
-def test_main_dispatches_run_job(monkeypatch):
+def test_main_dispatches_run_job_and_clears_active_marker(tmp_path, monkeypatch):
     called: list[str] = []
+    run_dir = tmp_path / "run_001"
 
     def _fake_run_job(run_dir):
         called.append(str(run_dir))
 
+    set_active_run(tmp_path, "run_001")
     monkeypatch.setattr("thermo_mining.control_plane.runner.run_job", _fake_run_job)
 
-    result = main(["run-job", "--run-dir", "/tmp/run_001"])
+    result = main(["run-job", "--run-dir", str(run_dir)])
 
     assert result is None
     assert len(called) == 1
-    assert Path(called[0]) == Path("/tmp/run_001")
+    assert Path(called[0]) == run_dir
+    assert read_active_run(tmp_path) is None
+
+
+def test_main_run_job_clears_active_marker_on_failure(tmp_path, monkeypatch):
+    run_dir = tmp_path / "run_001"
+
+    def _fake_run_job(run_dir):
+        raise RuntimeError("boom")
+
+    set_active_run(tmp_path, "run_001")
+    monkeypatch.setattr("thermo_mining.control_plane.runner.run_job", _fake_run_job)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        main(["run-job", "--run-dir", str(run_dir)])
+
+    assert read_active_run(tmp_path) is None
 
 
 def test_load_settings_reads_tmux_bin_and_service_port(tmp_path):
