@@ -54,6 +54,8 @@ def _build_user_prompt(message: str, bundles: list[InputBundle]) -> str:
 def _validate_plan(plan: ExecutionPlan, bundles: list[InputBundle]) -> None:
     if plan.stage_order != build_stage_order(plan.bundle_type):
         raise ValueError("execution plan stage order does not match the canonical stage graph")
+    if len(plan.input_items) != 1:
+        raise ValueError("execution plan must currently contain exactly one input item")
 
     provided_bundles = {_bundle_signature(bundle) for bundle in bundles}
     for bundle in plan.input_items:

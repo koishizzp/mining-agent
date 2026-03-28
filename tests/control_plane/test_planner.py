@@ -177,6 +177,46 @@ def test_plan_from_message_falls_back_when_llm_uses_unknown_inputs():
     assert result["plan_warnings"]
 
 
+def test_plan_from_message_falls_back_when_llm_selects_multiple_real_bundles():
+    bundles = [
+        InputBundle(
+            bundle_type="proteins",
+            sample_id="S01",
+            input_paths=["/mnt/disk2/S01.faa"],
+            metadata={},
+            output_root="/runs/S01",
+        ),
+        InputBundle(
+            bundle_type="proteins",
+            sample_id="S02",
+            input_paths=["/mnt/disk2/S02.faa"],
+            metadata={},
+            output_root="/runs/S02",
+        ),
+    ]
+    client = FakeLLMClient(
+        {
+            "assistant_message": "Planned the proteins flow",
+            "execution_plan": {
+                "bundle_type": "proteins",
+                "input_items": [bundle.model_dump() for bundle in bundles],
+                "stage_order": build_stage_order("proteins"),
+                "parameter_overrides": {},
+                "output_root": "/runs/S01",
+                "resume_policy": "if_possible",
+                "requires_confirmation": True,
+                "explanation": "Use both proteins bundles",
+            },
+            "plan_warnings": [],
+        }
+    )
+
+    result = plan_from_message("run the proteins files", bundles, client=client)
+
+    assert result["execution_plan"].input_items == [bundles[0]]
+    assert result["plan_warnings"]
+
+
 def test_explain_failure_mentions_stage_and_error_summary():
     text = explain_failure({"active_stage": "mmseqs_cluster", "error_summary": "mmseqs exited with code 1"})
 
