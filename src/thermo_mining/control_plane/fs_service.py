@@ -40,6 +40,11 @@ def list_path_entries(path: str | Path) -> list[PathEntry]:
 
 def search_path_entries(root: str | Path, query: str, limit: int = 50) -> list[PathEntry]:
     base = normalize_absolute_path(root)
+    if not base.is_dir():
+        raise ValueError("path must be a directory")
+    if limit <= 0:
+        return []
+
     matches: list[PathEntry] = []
 
     for candidate in base.rglob("*"):

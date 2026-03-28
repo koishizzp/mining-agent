@@ -30,3 +30,18 @@ def test_search_path_entries_finds_nested_matches(tmp_path):
     rows = search_path_entries(tmp_path, "hot_spring")
 
     assert rows[0].path.endswith("hot_spring_reads_1.fq.gz")
+
+
+def test_search_path_entries_rejects_non_directory_root(tmp_path):
+    root_file = tmp_path / "root.txt"
+    root_file.write_text("x", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        search_path_entries(root_file, "root")
+
+
+def test_search_path_entries_non_positive_limit_returns_no_rows(tmp_path):
+    (tmp_path / "hot_spring_reads_1.fq.gz").write_text("x", encoding="utf-8")
+
+    assert search_path_entries(tmp_path, "hot_spring", limit=0) == []
+    assert search_path_entries(tmp_path, "hot_spring", limit=-1) == []
