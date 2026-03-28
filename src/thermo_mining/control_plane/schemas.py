@@ -1,3 +1,5 @@
+import ntpath
+import posixpath
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -30,7 +32,7 @@ class InputBundle(BaseModel):
     @classmethod
     def validate_absolute_paths(cls, value: list[str]) -> list[str]:
         for item in value:
-            if not item.startswith("/"):
+            if not (posixpath.isabs(item) or ntpath.isabs(item)):
                 raise ValueError("input paths must be absolute")
         return value
 

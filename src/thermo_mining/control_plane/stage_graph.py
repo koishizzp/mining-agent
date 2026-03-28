@@ -33,4 +33,4 @@ STAGE_ORDERS: dict[BundleType, list[str]] = {
 
 
 def build_stage_order(bundle_type: BundleType) -> list[str]:
-    return STAGE_ORDERS[bundle_type]
+    return STAGE_ORDERS[bundle_type].copy()

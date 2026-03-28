@@ -20,6 +20,18 @@ def test_input_bundle_requires_absolute_paths():
         )
 
 
+def test_input_bundle_accepts_windows_absolute_paths():
+    bundle = InputBundle(
+        bundle_type="proteins",
+        sample_id="S01",
+        input_paths=[r"D:\data\S01.faa"],
+        metadata={},
+        output_root="/runs/S01",
+    )
+
+    assert bundle.input_paths == [r"D:\data\S01.faa"]
+
+
 def test_execution_plan_defaults_to_confirmation():
     bundle = InputBundle(
         bundle_type="proteins",
@@ -55,5 +67,36 @@ def test_build_stage_order_for_all_bundle_types():
         "foldseek_confirm",
         "rerank_report",
     ]
-    assert build_stage_order("contigs")[0] == "prodigal"
-    assert build_stage_order("proteins")[0] == "prefilter"
+    assert build_stage_order("contigs") == [
+        "prodigal",
+        "prefilter",
+        "mmseqs_cluster",
+        "temstapro_screen",
+        "protrek_recall",
+        "foldseek_confirm",
+        "rerank_report",
+    ]
+    assert build_stage_order("proteins") == [
+        "prefilter",
+        "mmseqs_cluster",
+        "temstapro_screen",
+        "protrek_recall",
+        "foldseek_confirm",
+        "rerank_report",
+    ]
+
+
+def test_build_stage_order_returns_non_shared_lists():
+    first_order = build_stage_order("proteins")
+    first_order.append("unexpected_stage")
+
+    second_order = build_stage_order("proteins")
+
+    assert second_order == [
+        "prefilter",
+        "mmseqs_cluster",
+        "temstapro_screen",
+        "protrek_recall",
+        "foldseek_confirm",
+        "rerank_report",
+    ]
