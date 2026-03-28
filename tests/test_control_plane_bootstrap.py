@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 
 from thermo_mining.cli import build_parser, main
 from thermo_mining.settings import load_settings
@@ -27,7 +28,6 @@ def test_build_parser_accepts_control_plane_commands_with_explicit_flags():
     ("argv", "command"),
     [
         (["serve"], "serve"),
-        (["run-job", "--run-dir", "/tmp/run_001"], "run-job"),
     ],
 )
 def test_main_rejects_unimplemented_control_plane_commands(argv, command, capsys):
@@ -36,6 +36,21 @@ def test_main_rejects_unimplemented_control_plane_commands(argv, command, capsys
 
     assert exc_info.value.code == 2
     assert f"command '{command}' is recognized but not implemented yet".lower() in capsys.readouterr().err.lower()
+
+
+def test_main_dispatches_run_job(monkeypatch):
+    called: list[str] = []
+
+    def _fake_run_job(run_dir):
+        called.append(str(run_dir))
+
+    monkeypatch.setattr("thermo_mining.control_plane.runner.run_job", _fake_run_job)
+
+    result = main(["run-job", "--run-dir", "/tmp/run_001"])
+
+    assert result is None
+    assert len(called) == 1
+    assert Path(called[0]) == Path("/tmp/run_001")
 
 
 def test_load_settings_reads_tmux_bin_and_service_port(tmp_path):

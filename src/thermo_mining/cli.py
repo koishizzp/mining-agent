@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+from .control_plane import runner as control_plane_runner
 from .pipeline import run_pipeline
 
 
@@ -25,11 +26,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def run_job(run_dir: str | Path) -> None:
+    control_plane_runner.run_job(Path(run_dir))
+
+
 def main(argv: list[str] | None = None) -> dict[str, object] | None:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.command in {"serve", "run-job"}:
+    if args.command == "serve":
         parser.error(f"Command '{args.command}' is recognized but not implemented yet.")
+    if args.command == "run-job":
+        run_job(args.run_dir)
+        return None
     if args.command != "run":
         return None
     return run_pipeline(
