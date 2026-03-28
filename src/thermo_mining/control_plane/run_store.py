@@ -93,7 +93,7 @@ def list_artifacts(run_dir: str | Path) -> list[ArtifactEntry]:
     for root in roots:
         if not root.exists():
             continue
-        for path in sorted(root.rglob("*")):
+        for path in root.rglob("*"):
             if path.is_file():
                 stat = path.stat()
                 rows.append(
