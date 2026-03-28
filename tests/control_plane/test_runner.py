@@ -289,6 +289,9 @@ def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeyp
         "thermo_mining.control_plane.runner.load_settings",
         lambda path: SimpleNamespace(
             tools=SimpleNamespace(
+                fastp_bin="fastp",
+                spades_bin="spades.py",
+                prodigal_bin="prodigal",
                 mmseqs_bin="/custom/mmseqs",
                 temstapro_bin="/custom/temstapro",
                 protrek_python_bin="/custom/python",
@@ -297,6 +300,9 @@ def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeyp
                 foldseek_base_url="http://foldseek.internal:9000",
             ),
             defaults=SimpleNamespace(
+                prefilter_min_length=111,
+                prefilter_max_length=888,
+                prefilter_max_single_residue_fraction=0.39,
                 cluster_min_seq_id=0.77,
                 cluster_coverage=0.66,
                 cluster_threads=12,
@@ -312,10 +318,12 @@ def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeyp
         ),
     )
 
-    monkeypatch.setattr(
-        "thermo_mining.control_plane.runner.run_prefilter",
-        lambda **kwargs: calls.append("prefilter") or {"filtered_faa": tmp_path / "filtered.faa"},
-    )
+    def fake_prefilter(**kwargs):
+        captured["prefilter"] = kwargs
+        calls.append("prefilter")
+        return {"filtered_faa": tmp_path / "filtered.faa"}
+
+    monkeypatch.setattr("thermo_mining.control_plane.runner.run_prefilter", fake_prefilter)
     def fake_mmseqs(**kwargs):
         captured["mmseqs"] = kwargs
         calls.append("mmseqs")
@@ -345,6 +353,9 @@ def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeyp
 
     run_job(record.run_dir)
 
+    assert captured["prefilter"]["min_length"] == 111
+    assert captured["prefilter"]["max_length"] == 888
+    assert captured["prefilter"]["max_single_residue_fraction"] == 0.39
     assert captured["mmseqs"]["mmseqs_bin"] == "/custom/mmseqs"
     assert captured["mmseqs"]["min_seq_id"] == 0.77
     assert captured["mmseqs"]["coverage"] == 0.66

@@ -144,9 +144,15 @@ def run_job(run_dir: str | Path) -> None:
                 prefilter_result = run_prefilter(
                     input_faa=current_input,
                     stage_dir=stage_dirs[stage_name],
-                    min_length=int(_plan_override(plan, "prefilter_min_length", 80)),
-                    max_length=int(_plan_override(plan, "prefilter_max_length", 1200)),
-                    max_single_residue_fraction=float(_plan_override(plan, "prefilter_max_single_residue_fraction", 0.7)),
+                    min_length=int(_plan_override(plan, "prefilter_min_length", settings.defaults.prefilter_min_length)),
+                    max_length=int(_plan_override(plan, "prefilter_max_length", settings.defaults.prefilter_max_length)),
+                    max_single_residue_fraction=float(
+                        _plan_override(
+                            plan,
+                            "prefilter_max_single_residue_fraction",
+                            settings.defaults.prefilter_max_single_residue_fraction,
+                        )
+                    ),
                     software_version=__version__,
                 )
                 current_input = Path(prefilter_result["filtered_faa"])

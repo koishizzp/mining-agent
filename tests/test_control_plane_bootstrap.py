@@ -156,6 +156,11 @@ def test_control_plane_scripts_resolve_repo_root_and_check_live_pid():
     assert 'REPO_ROOT=' in start_web
     assert 'CONFIG_PATH=' in start_web
     assert 'LOG_DIR=' in start_web
+    assert 'kill -0' in start_web
+    assert 'ps -p' in start_web
+    assert 'rm -f "$PID_FILE"' in start_web
+    assert 'web already running' in start_web
+    assert 'failed to start web' in start_web
     assert 'SCRIPT_DIR=' in start_all
     assert 'kill -0' in status
     assert 'ps -p' in status
