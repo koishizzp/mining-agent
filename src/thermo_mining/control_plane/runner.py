@@ -37,10 +37,16 @@ def _load_plan(run_dir: Path) -> dict[str, object]:
     return json.loads((run_dir / "execution_plan.json").read_text(encoding="utf-8"))
 
 
-def _write_stage_state(run_dir: Path, status: str, active_stage: str | None) -> None:
+def _write_stage_state(
+    run_dir: Path,
+    status: str,
+    active_stage: str | None,
+    error_summary: str | None = None,
+) -> None:
     existing = json.loads((run_dir / "runtime_state.json").read_text(encoding="utf-8"))
     existing["status"] = status
     existing["active_stage"] = active_stage
+    existing["error_summary"] = error_summary
     existing["updated_at"] = _now_iso()
     write_runtime_state(run_dir, existing)
 
@@ -81,12 +87,14 @@ def run_job(run_dir: str | Path) -> None:
     thermo_result: dict[str, Path] | None = None
     protrek_result: dict[str, Path] | None = None
     foldseek_result: dict[str, Path] | None = None
+    active_stage: str | None = None
 
-    _write_stage_state(run_dir, "running", None)
+    _write_stage_state(run_dir, "running", None, None)
 
     try:
         for stage_name in stage_order:
-            _write_stage_state(run_dir, "running", stage_name)
+            active_stage = stage_name
+            _write_stage_state(run_dir, "running", active_stage, None)
 
             if stage_name == "fastp":
                 cleaned_reads = run_fastp_stage(
@@ -200,8 +208,8 @@ def run_job(run_dir: str | Path) -> None:
                 continue
 
             raise ValueError(f"unsupported stage '{stage_name}'")
-    except Exception:
-        _write_stage_state(run_dir, "failed", None)
+    except Exception as exc:
+        _write_stage_state(run_dir, "failed", active_stage, str(exc))
         raise
 
-    _write_stage_state(run_dir, "succeeded", None)
+    _write_stage_state(run_dir, "succeeded", None, None)

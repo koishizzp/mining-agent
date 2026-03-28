@@ -1,9 +1,13 @@
-from openai import OpenAI
+def _load_openai_client():
+    from openai import OpenAI
+
+    return OpenAI
 
 
 class OpenAIPlannerClient:
     def __init__(self, model: str, api_key: str | None, base_url: str | None) -> None:
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        openai_client = _load_openai_client()
+        self.client = openai_client(api_key=api_key, base_url=base_url)
         self.model = model
 
     def plan(self, system_prompt: str, user_prompt: str) -> dict[str, object]:

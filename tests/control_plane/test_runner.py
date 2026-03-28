@@ -291,4 +291,5 @@ def test_run_job_marks_runtime_state_failed_when_stage_raises(tmp_path, monkeypa
 
     state = json.loads((Path(record.run_dir) / "runtime_state.json").read_text(encoding="utf-8"))
     assert state["status"] == "failed"
-    assert state["active_stage"] is None
+    assert state["active_stage"] == "prefilter"
+    assert state["error_summary"] == "prefilter failed"
