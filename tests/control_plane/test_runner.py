@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -273,6 +274,94 @@ def test_run_job_writes_reports_to_reports_directory(tmp_path, monkeypatch):
     run_job(record.run_dir)
 
     assert report_paths == [Path(record.run_dir) / "reports"]
+
+
+def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeypatch):
+    input_faa = tmp_path / "input.faa"
+    input_faa.write_text(">seed\nMSTNPKPQRK\n", encoding="utf-8")
+    plan = _make_plan("proteins", [str(input_faa)], "/runs/S01")
+    record = create_pending_run(tmp_path, plan)
+    captured: dict[str, dict[str, object]] = {}
+    calls: list[str] = []
+
+    monkeypatch.setenv("THERMO_PLATFORM_CONFIG", str(tmp_path / "platform.yaml"))
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.load_settings",
+        lambda path: SimpleNamespace(
+            tools=SimpleNamespace(
+                mmseqs_bin="/custom/mmseqs",
+                temstapro_bin="/custom/temstapro",
+                protrek_python_bin="/custom/python",
+                protrek_repo_root=Path("/srv/custom-protrek"),
+                protrek_weights_dir=Path("/srv/custom-protrek/weights"),
+                foldseek_base_url="http://foldseek.internal:9000",
+            ),
+            defaults=SimpleNamespace(
+                cluster_min_seq_id=0.77,
+                cluster_coverage=0.66,
+                cluster_threads=12,
+                thermo_top_fraction=0.31,
+                thermo_min_score=0.61,
+                protrek_query_texts=("thermostable enzyme", "industrial catalyst"),
+                protrek_batch_size=5,
+                protrek_top_k=17,
+                foldseek_database="customdb",
+                foldseek_topk=9,
+                foldseek_min_tmscore=0.91,
+            ),
+        ),
+    )
+
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_prefilter",
+        lambda **kwargs: calls.append("prefilter") or {"filtered_faa": tmp_path / "filtered.faa"},
+    )
+    def fake_mmseqs(**kwargs):
+        captured["mmseqs"] = kwargs
+        calls.append("mmseqs")
+        return {"cluster_rep_faa": tmp_path / "cluster.faa"}
+
+    def fake_temstapro(**kwargs):
+        captured["temstapro"] = kwargs
+        calls.append("temstapro")
+        (tmp_path / "hits.faa").write_text(">p1\nMSTNPKPQRK\n", encoding="utf-8")
+        return {"thermo_hits_faa": tmp_path / "hits.faa", "thermo_scores_tsv": tmp_path / "thermo.tsv"}
+
+    def fake_protrek(**kwargs):
+        captured["protrek"] = kwargs
+        calls.append("protrek")
+        return {"protrek_scores_tsv": tmp_path / "protrek.tsv"}
+
+    def fake_foldseek(**kwargs):
+        captured["foldseek"] = kwargs
+        calls.append("foldseek")
+        return {"foldseek_scores_tsv": tmp_path / "foldseek.tsv"}
+
+    monkeypatch.setattr("thermo_mining.control_plane.runner.run_mmseqs_cluster", fake_mmseqs)
+    monkeypatch.setattr("thermo_mining.control_plane.runner.run_temstapro_screen", fake_temstapro)
+    monkeypatch.setattr("thermo_mining.control_plane.runner.run_protrek_stage", fake_protrek)
+    monkeypatch.setattr("thermo_mining.control_plane.runner.run_foldseek_stage", fake_foldseek)
+    _install_score_stubs(monkeypatch, tmp_path, calls)
+
+    run_job(record.run_dir)
+
+    assert captured["mmseqs"]["mmseqs_bin"] == "/custom/mmseqs"
+    assert captured["mmseqs"]["min_seq_id"] == 0.77
+    assert captured["mmseqs"]["coverage"] == 0.66
+    assert captured["mmseqs"]["threads"] == 12
+    assert captured["temstapro"]["temstapro_bin"] == "/custom/temstapro"
+    assert captured["temstapro"]["top_fraction"] == 0.31
+    assert captured["temstapro"]["min_score"] == 0.61
+    assert captured["protrek"]["python_bin"] == "/custom/python"
+    assert captured["protrek"]["repo_root"] == Path("/srv/custom-protrek")
+    assert captured["protrek"]["weights_dir"] == Path("/srv/custom-protrek/weights")
+    assert captured["protrek"]["query_texts"] == ["thermostable enzyme", "industrial catalyst"]
+    assert captured["protrek"]["batch_size"] == 5
+    assert captured["protrek"]["top_k"] == 17
+    assert captured["foldseek"]["base_url"] == "http://foldseek.internal:9000"
+    assert captured["foldseek"]["database"] == "customdb"
+    assert captured["foldseek"]["topk"] == 9
+    assert captured["foldseek"]["min_tmscore"] == 0.91
 
 
 def test_run_job_marks_runtime_state_failed_when_stage_raises(tmp_path, monkeypatch):

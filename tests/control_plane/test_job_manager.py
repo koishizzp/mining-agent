@@ -1,4 +1,5 @@
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -37,6 +38,22 @@ def test_confirm_run_builds_tmux_new_session_command(tmp_path, monkeypatch):
 
     assert commands[0][:3] == ["tmux", "new-session", "-d"]
     assert record.run_id in " ".join(commands[0])
+
+
+def test_confirm_run_includes_config_flag_when_platform_config_path_available(tmp_path, monkeypatch):
+    commands: list[list[str]] = []
+    monkeypatch.setattr("subprocess.run", lambda cmd, check: commands.append(cmd))
+    record = create_pending_run(tmp_path, _build_plan())
+    config_path = tmp_path / "platform.yaml"
+    manager = JobManager(runs_root=tmp_path, tmux_bin="tmux", platform_config_path=config_path)
+
+    manager.confirm_run(record.run_id)
+
+    command_text = commands[0][-1]
+    assert "--config" in command_text
+    assert str(config_path) in command_text
+    assert "--run-dir" in command_text
+    assert str(Path(record.run_dir)) in command_text
 
 
 def test_confirm_run_rejects_second_active_run(tmp_path, monkeypatch):

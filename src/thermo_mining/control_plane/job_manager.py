@@ -1,3 +1,5 @@
+import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -9,9 +11,19 @@ class ActiveRunConflict(RuntimeError):
 
 
 class JobManager:
-    def __init__(self, runs_root: str | Path, tmux_bin: str) -> None:
+    def __init__(
+        self,
+        runs_root: str | Path,
+        tmux_bin: str,
+        platform_config_path: str | Path | None = None,
+    ) -> None:
         self.runs_root = Path(runs_root)
         self.tmux_bin = tmux_bin
+        if platform_config_path is None:
+            env_config_path = os.getenv("THERMO_PLATFORM_CONFIG")
+            self.platform_config_path = Path(env_config_path) if env_config_path else None
+        else:
+            self.platform_config_path = Path(platform_config_path)
 
     def _session_name(self, run_id: str) -> str:
         return f"thermo_{run_id}"
@@ -26,13 +38,18 @@ class JobManager:
         if not claimed:
             return session_name
 
+        run_job_command = ["thermo-mining", "run-job"]
+        if self.platform_config_path is not None:
+            run_job_command.extend(["--config", str(self.platform_config_path)])
+        run_job_command.extend(["--run-dir", str(run_dir)])
+
         command = [
             self.tmux_bin,
             "new-session",
             "-d",
             "-s",
             session_name,
-            f"thermo-mining run-job --run-dir {run_dir}",
+            shlex.join(run_job_command),
         ]
         try:
             subprocess.run(command, check=True)

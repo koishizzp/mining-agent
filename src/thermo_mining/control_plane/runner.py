@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from thermo_mining.io_utils import read_fasta
 from thermo_mining.control_plane.upstream_steps import run_fastp_stage, run_prodigal_stage, run_spades_stage
 from thermo_mining.pipeline import _read_scores_tsv
 from thermo_mining.reporting import write_report_outputs
+from thermo_mining.settings import PlatformSettings, load_settings
 from thermo_mining.steps.foldseek_client import run_foldseek_stage
 from thermo_mining.steps.mmseqs_cluster import run_mmseqs_cluster
 from thermo_mining.steps.prefilter import run_prefilter
@@ -35,6 +37,15 @@ def _now_iso() -> str:
 
 def _load_plan(run_dir: Path) -> dict[str, object]:
     return json.loads((run_dir / "execution_plan.json").read_text(encoding="utf-8"))
+
+
+def _default_platform_config_path() -> Path:
+    return Path(__file__).resolve().parents[3] / "config" / "platform.example.yaml"
+
+
+def _load_platform_settings() -> PlatformSettings:
+    config_path = Path(os.getenv("THERMO_PLATFORM_CONFIG", str(_default_platform_config_path())))
+    return load_settings(config_path)
 
 
 def _write_stage_state(
@@ -79,6 +90,7 @@ def _foldseek_manifest(input_faa: str | Path, stage_dir: str | Path) -> list[dic
 def run_job(run_dir: str | Path) -> None:
     run_dir = Path(run_dir)
     plan = _load_plan(run_dir)
+    settings = _load_platform_settings()
     bundle = plan["input_items"][0]
     stage_order = list(plan["stage_order"])
     stage_dirs = _build_stage_dirs(run_dir, stage_order)
@@ -101,7 +113,7 @@ def run_job(run_dir: str | Path) -> None:
                     read1=bundle["input_paths"][0],
                     read2=bundle["input_paths"][1],
                     stage_dir=stage_dirs[stage_name],
-                    fastp_bin="fastp",
+                    fastp_bin=settings.tools.fastp_bin,
                 )
                 continue
 
@@ -112,7 +124,7 @@ def run_job(run_dir: str | Path) -> None:
                     read1=cleaned_reads["read1"],
                     read2=cleaned_reads["read2"],
                     stage_dir=stage_dirs[stage_name],
-                    spades_bin="spades.py",
+                    spades_bin=settings.tools.spades_bin,
                     threads=32,
                 )
                 current_input = Path(spades_result["contigs_fa"])
@@ -122,7 +134,7 @@ def run_job(run_dir: str | Path) -> None:
                 prodigal_result = run_prodigal_stage(
                     contigs_fa=current_input,
                     stage_dir=stage_dirs[stage_name],
-                    prodigal_bin="prodigal",
+                    prodigal_bin=settings.tools.prodigal_bin,
                     software_version=__version__,
                 )
                 current_input = Path(prodigal_result["proteins_faa"])
@@ -144,10 +156,10 @@ def run_job(run_dir: str | Path) -> None:
                 cluster_result = run_mmseqs_cluster(
                     input_faa=current_input,
                     stage_dir=stage_dirs[stage_name],
-                    mmseqs_bin="mmseqs",
-                    min_seq_id=0.9,
-                    coverage=0.8,
-                    threads=64,
+                    mmseqs_bin=settings.tools.mmseqs_bin,
+                    min_seq_id=float(_plan_override(plan, "cluster_min_seq_id", settings.defaults.cluster_min_seq_id)),
+                    coverage=float(_plan_override(plan, "cluster_coverage", settings.defaults.cluster_coverage)),
+                    threads=int(_plan_override(plan, "cluster_threads", settings.defaults.cluster_threads)),
                     software_version=__version__,
                 )
                 current_input = Path(cluster_result["cluster_rep_faa"])
@@ -157,11 +169,11 @@ def run_job(run_dir: str | Path) -> None:
                 thermo_result = run_temstapro_screen(
                     input_faa=current_input,
                     stage_dir=stage_dirs[stage_name],
-                    temstapro_bin="temstapro",
+                    temstapro_bin=settings.tools.temstapro_bin,
                     model_dir="/models/temstapro/ProtTrans",
                     cache_dir="/tmp/temstapro_cache",
-                    top_fraction=float(_plan_override(plan, "thermo_top_fraction", 0.1)),
-                    min_score=float(_plan_override(plan, "thermo_min_score", 0.5)),
+                    top_fraction=float(_plan_override(plan, "thermo_top_fraction", settings.defaults.thermo_top_fraction)),
+                    min_score=float(_plan_override(plan, "thermo_min_score", settings.defaults.thermo_min_score)),
                     software_version=__version__,
                 )
                 current_input = Path(thermo_result["thermo_hits_faa"])
@@ -171,14 +183,14 @@ def run_job(run_dir: str | Path) -> None:
                 protrek_result = run_protrek_stage(
                     input_faa=current_input,
                     stage_dir=stage_dirs[stage_name],
-                    python_bin="python",
+                    python_bin=settings.tools.protrek_python_bin,
                     index_script="scripts/protrek_build_index.py",
                     query_script="scripts/protrek_query.py",
-                    repo_root="/srv/ProTrek",
-                    weights_dir="/srv/ProTrek/weights/ProTrek_650M",
-                    query_texts=["thermostable enzyme"],
-                    batch_size=8,
-                    top_k=int(_plan_override(plan, "protrek_top_k", 50)),
+                    repo_root=settings.tools.protrek_repo_root,
+                    weights_dir=settings.tools.protrek_weights_dir,
+                    query_texts=list(settings.defaults.protrek_query_texts),
+                    batch_size=int(_plan_override(plan, "protrek_batch_size", settings.defaults.protrek_batch_size)),
+                    top_k=int(_plan_override(plan, "protrek_top_k", settings.defaults.protrek_top_k)),
                     software_version=__version__,
                 )
                 continue
@@ -187,10 +199,10 @@ def run_job(run_dir: str | Path) -> None:
                 foldseek_result = run_foldseek_stage(
                     structure_manifest=_foldseek_manifest(current_input, stage_dirs[stage_name]),
                     stage_dir=stage_dirs[stage_name],
-                    base_url="http://127.0.0.1:8100",
-                    database="afdb50",
-                    topk=int(_plan_override(plan, "foldseek_topk", 5)),
-                    min_tmscore=float(_plan_override(plan, "foldseek_min_tmscore", 0.6)),
+                    base_url=settings.tools.foldseek_base_url,
+                    database=str(_plan_override(plan, "foldseek_database", settings.defaults.foldseek_database)),
+                    topk=int(_plan_override(plan, "foldseek_topk", settings.defaults.foldseek_topk)),
+                    min_tmscore=float(_plan_override(plan, "foldseek_min_tmscore", settings.defaults.foldseek_min_tmscore)),
                     software_version=__version__,
                 )
                 continue
