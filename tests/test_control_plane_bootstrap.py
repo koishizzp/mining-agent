@@ -72,6 +72,17 @@ def test_main_run_job_clears_active_marker_on_failure(tmp_path, monkeypatch):
     assert read_active_run(tmp_path) is None
 
 
+def test_main_run_job_preserves_different_active_marker(tmp_path, monkeypatch):
+    run_dir = tmp_path / "run_001"
+
+    monkeypatch.setattr("thermo_mining.control_plane.runner.run_job", lambda run_dir: None)
+    set_active_run(tmp_path, "run_other")
+
+    main(["run-job", "--run-dir", str(run_dir)])
+
+    assert read_active_run(tmp_path) == "run_other"
+
+
 def test_load_settings_reads_tmux_bin_and_service_port(tmp_path):
     config_path = tmp_path / "platform.yaml"
     config_path.write_text(
