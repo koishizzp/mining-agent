@@ -1,8 +1,7 @@
-import json
 import subprocess
 from pathlib import Path
 
-from .run_store import clear_active_run, read_active_run
+from .run_store import ActiveRunConflictError, claim_active_run, clear_active_run_if_match
 
 
 class ActiveRunConflict(RuntimeError):
@@ -17,26 +16,13 @@ class JobManager:
     def _session_name(self, run_id: str) -> str:
         return f"thermo_{run_id}"
 
-    def _active_marker_path(self) -> Path:
-        return self.runs_root / "_control_plane" / "active_run.json"
-
-    def _claim_active_run(self, run_id: str) -> bool:
-        marker = self._active_marker_path()
-        marker.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            with marker.open("x", encoding="utf-8") as handle:
-                json.dump({"run_id": run_id}, handle)
-            return True
-        except FileExistsError:
-            active = read_active_run(self.runs_root)
-            if active == run_id:
-                return False
-            raise ActiveRunConflict(f"active run already exists: {active}")
-
     def confirm_run(self, run_id: str) -> str:
         run_dir = self.runs_root / run_id
         session_name = self._session_name(run_id)
-        claimed = self._claim_active_run(run_id)
+        try:
+            claimed = claim_active_run(self.runs_root, run_id)
+        except ActiveRunConflictError as exc:
+            raise ActiveRunConflict(str(exc)) from exc
         if not claimed:
             return session_name
 
@@ -51,17 +37,17 @@ class JobManager:
         try:
             subprocess.run(command, check=True)
         except Exception:
-            clear_active_run(self.runs_root)
+            clear_active_run_if_match(self.runs_root, run_id)
             raise
         return session_name
 
     def stop_run(self, run_id: str) -> None:
         subprocess.run([self.tmux_bin, "send-keys", "-t", self._session_name(run_id), "C-c"], check=True)
-        clear_active_run(self.runs_root)
+        clear_active_run_if_match(self.runs_root, run_id)
 
     def terminate_run(self, run_id: str) -> None:
         subprocess.run([self.tmux_bin, "kill-session", "-t", self._session_name(run_id)], check=True)
-        clear_active_run(self.runs_root)
+        clear_active_run_if_match(self.runs_root, run_id)
 
     def resume_run(self, run_id: str) -> str:
         return self.confirm_run(run_id)

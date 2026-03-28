@@ -92,6 +92,21 @@ def test_confirm_run_tmux_failure_clears_active_marker(tmp_path, monkeypatch):
     assert read_active_run(tmp_path) is None
 
 
+def test_confirm_run_tmux_failure_preserves_replaced_active_marker(tmp_path, monkeypatch):
+    def _fake_run(cmd: list[str], check: bool) -> None:
+        set_active_run(tmp_path, "run_other")
+        raise subprocess.CalledProcessError(1, cmd)
+
+    monkeypatch.setattr("subprocess.run", _fake_run)
+    record = create_pending_run(tmp_path, _build_plan())
+    manager = JobManager(runs_root=tmp_path, tmux_bin="tmux")
+
+    with pytest.raises(subprocess.CalledProcessError):
+        manager.confirm_run(record.run_id)
+
+    assert read_active_run(tmp_path) == "run_other"
+
+
 def test_stop_run_sends_interrupt_and_clears_active_marker(tmp_path, monkeypatch):
     commands: list[list[str]] = []
     run_id = "run_1234abcd"

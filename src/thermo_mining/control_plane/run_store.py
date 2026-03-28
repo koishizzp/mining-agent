@@ -1,4 +1,6 @@
+from contextlib import contextmanager
 import json
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -6,8 +8,66 @@ from uuid import uuid4
 from .schemas import ArtifactEntry, ExecutionPlan, RunRecord
 
 
+class ActiveRunConflictError(RuntimeError):
+    pass
+
+
+def _control_dir(runs_root: str | Path) -> Path:
+    return Path(runs_root) / "_control_plane"
+
+
+def _active_marker_path(runs_root: str | Path) -> Path:
+    return _control_dir(runs_root) / "active_run.json"
+
+
+def _active_lock_path(runs_root: str | Path) -> Path:
+    return _control_dir(runs_root) / "active_run.lock"
+
+
+@contextmanager
+def _active_run_lock(runs_root: str | Path, timeout_seconds: float = 2.0):
+    lock_path = _active_lock_path(runs_root)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        try:
+            with lock_path.open("x", encoding="utf-8"):
+                break
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"timed out waiting for active-run lock: {lock_path}")
+            time.sleep(0.01)
+    try:
+        yield
+    finally:
+        if lock_path.exists():
+            lock_path.unlink()
+
+
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _read_active_run_unlocked(runs_root: str | Path) -> str | None:
+    marker = _active_marker_path(runs_root)
+    if not marker.exists():
+        return None
+    return json.loads(marker.read_text(encoding="utf-8"))["run_id"]
+
+
+def _set_active_run_unlocked(runs_root: str | Path, run_id: str) -> None:
+    control_dir = _control_dir(runs_root)
+    control_dir.mkdir(parents=True, exist_ok=True)
+    _active_marker_path(runs_root).write_text(
+        json.dumps({"run_id": run_id}),
+        encoding="utf-8",
+    )
+
+
+def _clear_active_run_unlocked(runs_root: str | Path) -> None:
+    marker = _active_marker_path(runs_root)
+    if marker.exists():
+        marker.unlink()
 
 
 def create_pending_run(runs_root: str | Path, plan: ExecutionPlan) -> RunRecord:
@@ -64,25 +124,37 @@ def read_runtime_state(run_dir: str | Path) -> RunRecord:
 
 
 def set_active_run(runs_root: str | Path, run_id: str) -> None:
-    control_dir = Path(runs_root) / "_control_plane"
-    control_dir.mkdir(parents=True, exist_ok=True)
-    (control_dir / "active_run.json").write_text(
-        json.dumps({"run_id": run_id}),
-        encoding="utf-8",
-    )
+    with _active_run_lock(runs_root):
+        _set_active_run_unlocked(runs_root, run_id)
 
 
 def read_active_run(runs_root: str | Path) -> str | None:
-    marker = Path(runs_root) / "_control_plane" / "active_run.json"
-    if not marker.exists():
-        return None
-    return json.loads(marker.read_text(encoding="utf-8"))["run_id"]
+    return _read_active_run_unlocked(runs_root)
 
 
 def clear_active_run(runs_root: str | Path) -> None:
-    marker = Path(runs_root) / "_control_plane" / "active_run.json"
-    if marker.exists():
-        marker.unlink()
+    with _active_run_lock(runs_root):
+        _clear_active_run_unlocked(runs_root)
+
+
+def claim_active_run(runs_root: str | Path, run_id: str) -> bool:
+    with _active_run_lock(runs_root):
+        active = _read_active_run_unlocked(runs_root)
+        if active is None:
+            _set_active_run_unlocked(runs_root, run_id)
+            return True
+        if active == run_id:
+            return False
+        raise ActiveRunConflictError(f"active run already exists: {active}")
+
+
+def clear_active_run_if_match(runs_root: str | Path, run_id: str) -> bool:
+    with _active_run_lock(runs_root):
+        active = _read_active_run_unlocked(runs_root)
+        if active != run_id:
+            return False
+        _clear_active_run_unlocked(runs_root)
+        return True
 
 
 def list_artifacts(run_dir: str | Path) -> list[ArtifactEntry]:
