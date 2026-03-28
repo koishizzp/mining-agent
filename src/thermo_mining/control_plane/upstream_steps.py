@@ -110,7 +110,6 @@ def run_prodigal_stage(
     prodigal_bin: str = "prodigal",
     software_version: str = "0.1.0",
 ) -> dict[str, Path]:
-    _ = software_version
     stage_dir = Path(stage_dir)
     stage_dir.mkdir(parents=True, exist_ok=True)
     proteins_faa = stage_dir / "proteins.faa"
