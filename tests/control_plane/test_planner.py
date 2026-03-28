@@ -319,6 +319,9 @@ def test_openai_planner_client_plan_uses_responses_api(monkeypatch):
     llm_client = importlib.import_module("thermo_mining.control_plane.llm_client")
 
     client = llm_client.OpenAIPlannerClient(model="gpt-test", api_key="secret", base_url="http://localhost")
+
+    assert "client_init" not in captured
+
     result = client.plan(system_prompt="system", user_prompt="user")
 
     assert captured["client_init"] == {"api_key": "secret", "base_url": "http://localhost"}

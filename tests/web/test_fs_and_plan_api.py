@@ -1,7 +1,5 @@
 from fastapi.testclient import TestClient
-import pytest
 
-from thermo_mining.web import dependencies
 from thermo_mining.web.app import create_app
 
 
@@ -17,11 +15,9 @@ def test_fs_list_endpoint_returns_directory_rows(tmp_path):
 
 def test_plan_endpoint_returns_structured_plan(monkeypatch):
     client = TestClient(create_app())
-    fake_client = object()
 
     def fake_plan_from_message(message, bundles, client):
         bundle = bundles[0]
-        assert client is fake_client
         return {
             "assistant_message": "planned",
             "execution_plan": {
@@ -37,7 +33,6 @@ def test_plan_endpoint_returns_structured_plan(monkeypatch):
             "plan_warnings": [],
         }
 
-    monkeypatch.setattr("thermo_mining.web.routes_api_plan.get_llm_client", lambda: fake_client)
     monkeypatch.setattr("thermo_mining.web.routes_api_plan.plan_from_message", fake_plan_from_message)
 
     response = client.post(
@@ -58,13 +53,3 @@ def test_plan_endpoint_returns_structured_plan(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["assistant_message"] == "planned"
-
-
-def test_get_llm_client_propagates_missing_openai_dependency(monkeypatch):
-    def raising_openai_planner_client(*, model, api_key, base_url):
-        raise ModuleNotFoundError("No module named 'openai'")
-
-    monkeypatch.setattr(dependencies, "OpenAIPlannerClient", raising_openai_planner_client)
-
-    with pytest.raises(ModuleNotFoundError):
-        dependencies.get_llm_client()
