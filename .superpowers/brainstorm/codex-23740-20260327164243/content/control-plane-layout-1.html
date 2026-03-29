@@ -1,0 +1,80 @@
+<h2>Thermo Mining Control Plane MVP</h2>
+<p class="subtitle">Recommended single-page console for chat planning, plan review, active run monitoring, and artifact lookup</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">Desktop Shell</div>
+    <div class="mockup-body">
+      <div class="mock-nav">Thermo Mining Platform | Active run: one at a time | Settings | Health</div>
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-top:16px;">
+        <div class="mockup">
+          <div class="mockup-header">Chat</div>
+          <div class="mockup-body">
+            <div class="placeholder" style="height:68px;">Natural-language prompt history and assistant explanations</div>
+            <div class="placeholder" style="height:54px;margin-top:10px;">Structured intent summary generated from the latest chat turn</div>
+            <div class="mock-input" style="margin-top:12px;">"Scan /mnt/disk3/raw and prepare paired reads for the default pipeline"</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-rows:1fr 1fr;gap:16px;">
+          <div class="mockup">
+            <div class="mockup-header">Plan Review</div>
+            <div class="mockup-body">
+              <div class="placeholder" style="height:36px;">Bundle type, selected inputs, output root</div>
+              <div class="placeholder" style="height:36px;margin-top:8px;">Stage order and key parameter overrides</div>
+              <div class="placeholder" style="height:36px;margin-top:8px;">Editable fields: output root, resume, small threshold overrides</div>
+              <button class="mock-button" style="margin-top:10px;">Confirm and start tmux job</button>
+            </div>
+          </div>
+          <div class="mockup">
+            <div class="mockup-header">Run Monitor</div>
+            <div class="mockup-body">
+              <div class="placeholder" style="height:32px;">Status: running | active stage | tmux session</div>
+              <div class="placeholder" style="height:32px;margin-top:8px;">Recent log lines and last error summary</div>
+              <div class="placeholder" style="height:32px;margin-top:8px;">Actions: stop, terminate, resume</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mockup" style="margin-top:16px;">
+        <div class="mockup-header">Artifacts and History</div>
+        <div class="mockup-body">
+          <div class="placeholder" style="height:34px;">summary.md | shortlist tables | execution_plan.json | runtime_state.json | stage logs</div>
+          <div class="placeholder" style="height:34px;margin-top:8px;">Recent completed runs and artifact paths</div>
+        </div>
+      </div>
+      <div class="mockup" style="margin-top:16px;">
+        <div class="mockup-header">File Browser Modal</div>
+        <div class="mockup-body">
+          <div class="placeholder" style="height:34px;">Browse any absolute path | search paths | scan bundles | pair FASTQ</div>
+          <div class="placeholder" style="height:34px;margin-top:8px;">Hard confirmation before plan submission for selected server paths</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">Primary Flow</div>
+      <div class="mockup-body">
+        <div class="placeholder">1. Chat collects intent</div>
+        <div class="placeholder" style="margin-top:8px;">2. File browser returns structured path selections</div>
+        <div class="placeholder" style="margin-top:8px;">3. Planner emits ExecutionPlan</div>
+        <div class="placeholder" style="margin-top:8px;">4. User edits a few fields in Plan Review</div>
+        <div class="placeholder" style="margin-top:8px;">5. Confirm starts one tmux-backed run</div>
+        <div class="placeholder" style="margin-top:8px;">6. Monitor and Artifacts read runtime_state.json + run directory</div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">Boundary Decisions Locked In</div>
+      <div class="mockup-body">
+        <div class="placeholder">Single user, no login system</div>
+        <div class="placeholder" style="margin-top:8px;">One active run at a time</div>
+        <div class="placeholder" style="margin-top:8px;">No local file upload; server-path selection only</div>
+        <div class="placeholder" style="margin-top:8px;">Filesystem may browse any absolute path, but selection is type-checked and confirmed</div>
+        <div class="placeholder" style="margin-top:8px;">Chat does planning, status queries, and basic failure explanation only</div>
+      </div>
+    </div>
+  </div>
+</div>
