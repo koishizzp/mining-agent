@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
 import os
 import platform
 import shutil
@@ -166,7 +167,112 @@ def add_candidate_sections(report: dict[str, Any]) -> None:
         report["warnings"].append("Foldseek base URL remains manual because no local default candidate responded.")
 
 
+def collect_probe_report() -> dict[str, Any]:
+    report = build_initial_report()
+    report["tools"] = probe_tools()
+    add_candidate_sections(report)
+    return report
+
+
+def _yaml_scalar(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    text = str(value)
+    if text.startswith("__MANUAL__:") or ":" in text or "#" in text:
+        return json.dumps(text)
+    return text
+
+
+def render_platform_yaml(report: dict[str, Any]) -> str:
+    lines = [
+        "llm:",
+        "  model: gpt-4o-mini",
+        "  api_key: null",
+        "  base_url: https://api.openai.com/v1",
+        "",
+        "runtime:",
+        f"  data_root: {_yaml_scalar(report['runtime']['data_root'].get('value'))}",
+        f"  runs_root: {_yaml_scalar(report['runtime']['runs_root'].get('value'))}",
+        "",
+        "service:",
+        f"  host: {_yaml_scalar(report['service']['host'].get('value'))}",
+        f"  port: {_yaml_scalar(report['service']['port'].get('value'))}",
+        "",
+        "logging:",
+        f"  log_path: {_yaml_scalar(report['runtime']['log_path'].get('value'))}",
+        "",
+        "tools:",
+        f"  fastp_bin: {_yaml_scalar(report['tools']['fastp'].get('path') or '__MANUAL__: set fastp path')}",
+        f"  spades_bin: {_yaml_scalar(report['tools']['spades_py'].get('path') or '__MANUAL__: set spades.py path')}",
+        f"  prodigal_bin: {_yaml_scalar(report['tools']['prodigal'].get('path') or '__MANUAL__: set prodigal path')}",
+        f"  mmseqs_bin: {_yaml_scalar(report['tools']['mmseqs'].get('path') or '__MANUAL__: set mmseqs path')}",
+        f"  temstapro_bin: {_yaml_scalar(report['tools']['temstapro'].get('path') or '__MANUAL__: set temstapro path')}",
+        f"  protrek_python_bin: {_yaml_scalar(report['protrek']['python_bin'].get('path') or '__MANUAL__: set ProTrek python path')}",
+        f"  protrek_repo_root: {_yaml_scalar(report['protrek']['repo_root'].get('path') or '__MANUAL__: set ProTrek repo root')}",
+        f"  protrek_weights_dir: {_yaml_scalar(report['protrek']['weights_dir'].get('path') or '__MANUAL__: set ProTrek weights dir')}",
+        f"  foldseek_base_url: {_yaml_scalar(report['foldseek']['base_url'].get('value'))}",
+        f"  tmux_bin: {_yaml_scalar(report['tools']['tmux'].get('path') or '__MANUAL__: set tmux path')}",
+        "",
+        "defaults:",
+        "  prefilter_min_length: 80",
+        "  prefilter_max_length: 1200",
+        "  prefilter_max_single_residue_fraction: 0.7",
+        "  cluster_min_seq_id: 0.9",
+        "  cluster_coverage: 0.8",
+        "  cluster_threads: 64",
+        "  thermo_top_fraction: 0.1",
+        "  thermo_min_score: 0.5",
+        "  protrek_query_texts:",
+        "    - thermostable enzyme",
+        "    - heat-stable protein",
+        "  protrek_batch_size: 8",
+        "  protrek_top_k: 50",
+        "  foldseek_database: afdb50",
+        "  foldseek_topk: 5",
+        "  foldseek_min_tmscore: 0.6",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def render_summary_text(report: dict[str, Any]) -> str:
+    lines = [
+        "Server probe completed.",
+        f"host: {report['metadata']['hostname']}",
+        f"user: {report['metadata']['user']}",
+        f"repo_root: {report['deployment']['repo_root']['status']}",
+        f"config_path: {report['deployment']['config_path']['status']}",
+        f"tmux: {report['tools']['tmux']['status']}",
+        f"foldseek_base_url: {report['foldseek']['base_url']['status']}",
+    ]
+    if report["warnings"]:
+        lines.append("warnings:")
+        lines.extend(f"- {warning}" for warning in report["warnings"])
+    return "\n".join(lines) + "\n"
+
+
+def write_probe_bundle(output_dir: Path, report: dict[str, Any]) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "server_probe.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output_dir / "platform.server-draft.yaml").write_text(render_platform_yaml(report), encoding="utf-8")
+    (output_dir / "server_probe.txt").write_text(render_summary_text(report), encoding="utf-8")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    report = collect_probe_report()
+    write_probe_bundle(Path(args.output_dir), report)
+    return 0
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Probe a thermo-mining server before repo clone.")
     parser.add_argument("--output-dir", default="thermo_server_probe")
     return parser.parse_args(argv)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

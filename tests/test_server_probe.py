@@ -1,3 +1,4 @@
+import json
 import importlib.util
 from pathlib import Path
 
@@ -101,3 +102,43 @@ def test_add_candidate_sections_records_protrek_runtime_and_foldseek(monkeypatch
     assert report["foldseek"]["base_url"]["status"] == "candidate"
     assert report["foldseek"]["base_url"]["value"] == "http://127.0.0.1:8100"
     assert report["warnings"] == []
+
+
+def test_main_writes_json_yaml_and_summary_bundle(monkeypatch, tmp_path):
+    probe = load_probe_module()
+
+    report = probe.build_initial_report()
+    report["tools"] = {
+        "tmux": {"status": "detected", "path": "/usr/bin/tmux", "version_text": "tmux 3.4"},
+        "fastp": {"status": "missing", "path": None, "version_text": None},
+        "spades_py": {"status": "missing", "path": None, "version_text": None},
+        "prodigal": {"status": "missing", "path": None, "version_text": None},
+        "mmseqs": {"status": "missing", "path": None, "version_text": None},
+        "temstapro": {"status": "missing", "path": None, "version_text": None},
+    }
+    report["runtime"] = {
+        "data_root": {"status": "manual", "value": "__MANUAL__: choose final data directory"},
+        "runs_root": {"status": "candidate", "value": "/mnt/disk4/thermo-runs"},
+        "log_path": {"status": "candidate", "value": "/mnt/disk4/thermo-runs/platform.log"},
+    }
+    report["protrek"] = {
+        "python_bin": {"status": "missing", "path": None},
+        "repo_root": {"status": "missing", "path": None},
+        "weights_dir": {"status": "missing", "path": None},
+    }
+    report["foldseek"] = {
+        "base_url": {"status": "manual", "value": "__MANUAL__: set Foldseek service URL", "connectivity": "unknown"},
+    }
+
+    monkeypatch.setattr(probe, "collect_probe_report", lambda: report)
+
+    exit_code = probe.main(["--output-dir", str(tmp_path)])
+
+    assert exit_code == 0
+    assert json.loads((tmp_path / "server_probe.json").read_text(encoding="utf-8"))["tools"]["tmux"]["path"] == "/usr/bin/tmux"
+    yaml_text = (tmp_path / "platform.server-draft.yaml").read_text(encoding="utf-8")
+    assert "tmux_bin: /usr/bin/tmux" in yaml_text
+    assert 'foldseek_base_url: "__MANUAL__: set Foldseek service URL"' in yaml_text
+    summary_text = (tmp_path / "server_probe.txt").read_text(encoding="utf-8")
+    assert "server probe completed" in summary_text.lower()
+    assert "repo_root: manual" in summary_text.lower()
