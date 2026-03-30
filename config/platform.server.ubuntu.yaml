@@ -1,0 +1,68 @@
+# Thermo Mining server-specific draft for:
+#   repo_root: /mnt/disk3/tio_nekton4
+#   config_path: /mnt/disk3/tio_nekton4/config/platform.server.ubuntu.yaml
+#
+# This file captures the paths confirmed so far.
+# Remaining gaps are called out inline with comments.
+
+llm:
+  model: gpt-4o-mini
+  api_key: null
+  base_url: https://api.openai.com/v1
+
+runtime:
+  # Assumed repo-local defaults. Change if your real inputs/runs live elsewhere.
+  data_root: /mnt/disk3/tio_nekton4/inputs
+  runs_root: /mnt/disk3/tio_nekton4/runs
+
+service:
+  # Keep loopback if you'll access through SSH tunnel / reverse proxy.
+  host: 127.0.0.1
+  port: 8000
+
+logging:
+  log_path: /mnt/disk3/tio_nekton4/logs/platform.log
+
+tools:
+  tmux_bin: /mnt/disk3/tio_nekton4/tmux-local/bin/tmux
+  fastp_bin: /mnt/disk3/tio_nekton4/bin/fastp
+  spades_bin: /mnt/disk3/tio_nekton4/miniconda3/envs/spades_env/bin/spades.py
+  prodigal_bin: /mnt/disk3/tio_nekton4/miniconda3/envs/prodigal_env/bin/prodigal
+  mmseqs_bin: /mnt/disk3/tio_nekton4/miniconda3/bin/mmseqs
+  temstapro_bin: /mnt/disk3/tio_nekton4/TemStaPro-main/temstapro
+  protrek_python_bin: /mnt/disk3/tio_nekton4/miniconda3/envs/protrek/bin/python
+  protrek_repo_root: /mnt/disk3/tio_nekton4/ProTrek
+  # Current code calls this field "protrek_weights_dir", but your server currently
+  # exposes a single .pt file. Keep this value as-is until the runtime contract is tightened.
+  protrek_weights_dir: /mnt/disk3/tio_nekton4/ProTrek/ProTrek_650M.pt
+  # Current control-plane path expects an HTTP Foldseek service, not just a local binary.
+  # Replace this before using Foldseek-backed stages.
+  foldseek_base_url: "__MANUAL__: set Foldseek service URL"
+
+defaults:
+  prefilter_min_length: 80
+  prefilter_max_length: 1200
+  prefilter_max_single_residue_fraction: 0.7
+  cluster_min_seq_id: 0.9
+  cluster_coverage: 0.8
+  cluster_threads: 64
+  thermo_top_fraction: 0.1
+  thermo_min_score: 0.5
+  protrek_query_texts:
+    - thermostable enzyme
+    - heat-stable protein
+  protrek_batch_size: 8
+  protrek_top_k: 50
+  foldseek_database: afdb50
+  foldseek_topk: 5
+  foldseek_min_tmscore: 0.6
+
+# Notes:
+# - TemStaPro on this server still depends on:
+#   1. activating `temstapro_env_CPU`
+#   2. passing `-d` with the ProtTrans model directory
+# - Current control-plane runner hardcodes TemStaPro model/cache paths and does not
+#   yet expose them in platform settings.
+# - Local Foldseek binary observed on server:
+#   /mnt/disk3/tio_nekton4/foldseek/bin/foldseek
+#   but current control-plane code still expects `tools.foldseek_base_url`.
