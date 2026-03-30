@@ -12,6 +12,40 @@ def load_probe_module():
     return module
 
 
+def test_parse_args_accepts_conda_prefix_and_name():
+    probe = load_probe_module()
+
+    args = probe.parse_args(["--output-dir", "out", "--conda-prefix", "/envs/thermo", "--conda-name", "thermo"])
+
+    assert args.output_dir == "out"
+    assert args.conda_prefix == "/envs/thermo"
+    assert args.conda_name == "thermo"
+
+
+def test_build_initial_report_includes_manual_conda_section(monkeypatch):
+    probe = load_probe_module()
+
+    monkeypatch.setattr(probe.socket, "gethostname", lambda: "thermo-box")
+    monkeypatch.setattr(probe.getpass, "getuser", lambda: "ubuntu")
+    monkeypatch.setattr(probe.os, "getcwd", lambda: "/home/ubuntu")
+    monkeypatch.setattr(probe.sys, "executable", "/usr/bin/python3")
+    monkeypatch.setattr(probe.platform, "platform", lambda: "Linux-6.8")
+    monkeypatch.setattr(probe, "_utc_now_iso", lambda: "2026-03-30T12:00:00+00:00")
+
+    report = probe.build_initial_report()
+
+    assert report["conda"] == {
+        "requested_mode": "none",
+        "requested_name": None,
+        "requested_prefix": None,
+        "resolved_prefix": None,
+        "active_prefix": None,
+        "active_env_name": None,
+        "status": "manual",
+        "notes": [],
+    }
+
+
 def test_build_initial_report_contains_metadata_and_manual_deployment(monkeypatch):
     probe = load_probe_module()
 

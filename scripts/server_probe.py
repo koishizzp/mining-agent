@@ -77,6 +77,16 @@ def build_initial_report() -> dict[str, Any]:
             "repo_root": probe_item("manual", value="__MANUAL__: choose final clone path"),
             "config_path": probe_item("manual", value="__MANUAL__: choose final config path"),
         },
+        "conda": {
+            "requested_mode": "none",
+            "requested_name": None,
+            "requested_prefix": None,
+            "resolved_prefix": None,
+            "active_prefix": None,
+            "active_env_name": None,
+            "status": "manual",
+            "notes": [],
+        },
         "tools": {},
         "protrek": {},
         "foldseek": {},
@@ -271,6 +281,8 @@ def main(argv: list[str] | None = None) -> int:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Probe a thermo-mining server before repo clone.")
     parser.add_argument("--output-dir", default="thermo_server_probe")
+    parser.add_argument("--conda-prefix", default=None)
+    parser.add_argument("--conda-name", default=None)
     return parser.parse_args(argv)
 
 
