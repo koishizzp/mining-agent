@@ -29,7 +29,13 @@ def test_build_initial_report_contains_metadata_and_manual_deployment(monkeypatc
     assert report["metadata"]["python3_path"] == "/usr/bin/python3"
     assert report["metadata"]["generated_at"] == "2026-03-30T12:00:00+00:00"
     assert report["deployment"]["repo_root"]["status"] == "manual"
+    assert report["deployment"]["repo_root"]["value"] == "__MANUAL__: choose final clone path"
     assert report["deployment"]["config_path"]["status"] == "manual"
+    assert report["deployment"]["config_path"]["value"] == "__MANUAL__: choose final config path"
     assert report["service"]["host"] == {"status": "candidate", "value": "127.0.0.1"}
     assert report["service"]["port"] == {"status": "candidate", "value": 8000}
+    assert report["tools"] == {}
+    assert report["protrek"] == {}
+    assert report["foldseek"] == {}
+    assert report["runtime"] == {}
     assert report["warnings"] == []
