@@ -39,3 +39,29 @@ def test_build_initial_report_contains_metadata_and_manual_deployment(monkeypatc
     assert report["foldseek"] == {}
     assert report["runtime"] == {}
     assert report["warnings"] == []
+
+
+def test_probe_tools_marks_detected_and_missing(monkeypatch):
+    probe = load_probe_module()
+
+    monkeypatch.setattr(
+        probe.shutil,
+        "which",
+        lambda name: {
+            "tmux": "/usr/bin/tmux",
+            "fastp": "/usr/bin/fastp",
+            "spades.py": "/usr/bin/spades.py",
+            "prodigal": "/usr/bin/prodigal",
+            "mmseqs": "/usr/bin/mmseqs",
+        }.get(name),
+    )
+    monkeypatch.setattr(probe, "capture_version_text", lambda path: f"{Path(path).name} 1.0")
+
+    tools = probe.probe_tools()
+
+    assert tools["tmux"]["status"] == "detected"
+    assert tools["tmux"]["path"] == "/usr/bin/tmux"
+    assert tools["tmux"]["version_text"] == "tmux 1.0"
+    assert tools["fastp"]["status"] == "detected"
+    assert tools["temstapro"]["status"] == "missing"
+    assert tools["temstapro"]["path"] is None

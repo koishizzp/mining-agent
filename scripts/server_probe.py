@@ -5,13 +5,23 @@ import argparse
 import getpass
 import os
 import platform
+import shutil
 import socket
 import sys
 from datetime import datetime, timezone
+import subprocess
 from typing import Any
 
 
 STATUS_VALUES = {"detected", "missing", "candidate", "manual"}
+TOOL_COMMANDS = {
+    "tmux": "tmux",
+    "fastp": "fastp",
+    "spades_py": "spades.py",
+    "prodigal": "prodigal",
+    "mmseqs": "mmseqs",
+    "temstapro": "temstapro",
+}
 
 
 def _utc_now_iso() -> str:
@@ -51,6 +61,33 @@ def build_initial_report() -> dict[str, Any]:
         },
         "warnings": [],
     }
+
+
+def capture_version_text(path: str) -> str | None:
+    for args in ([path, "--version"], [path, "-v"], [path, "version"]):
+        try:
+            completed = subprocess.run(args, capture_output=True, text=True, check=False, timeout=2)
+        except OSError:
+            return None
+        output = (completed.stdout or completed.stderr).strip()
+        if output:
+            return output.splitlines()[0]
+    return None
+
+
+def probe_tools() -> dict[str, dict[str, Any]]:
+    tools: dict[str, dict[str, Any]] = {}
+    for key, command in TOOL_COMMANDS.items():
+        resolved = shutil.which(command)
+        if resolved is None:
+            tools[key] = probe_item("missing", path=None, version_text=None)
+            continue
+        tools[key] = probe_item(
+            "detected",
+            path=resolved,
+            version_text=capture_version_text(resolved),
+        )
+    return tools
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
