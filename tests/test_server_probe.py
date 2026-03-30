@@ -150,6 +150,69 @@ def test_probe_tools_warns_when_tool_falls_back_outside_conda(monkeypatch, tmp_p
     assert any("fastp" in warning and "conda" in warning.lower() for warning in warnings)
 
 
+def test_main_writes_conda_metadata_and_summary_lines(monkeypatch, tmp_path):
+    probe = load_probe_module()
+
+    report = probe.build_initial_report()
+    report["conda"] = {
+        "requested_mode": "prefix",
+        "requested_name": None,
+        "requested_prefix": "/envs/thermo",
+        "resolved_prefix": "/envs/thermo",
+        "active_prefix": None,
+        "active_env_name": None,
+        "status": "detected",
+        "notes": [],
+    }
+    report["tools"] = {
+        "tmux": {
+            "status": "detected",
+            "path": "/usr/bin/tmux",
+            "version_text": "tmux 3.4",
+            "source": "path",
+            "from_conda": False,
+        },
+        "fastp": {
+            "status": "detected",
+            "path": "/envs/thermo/bin/fastp",
+            "version_text": "fastp 0.23.4",
+            "source": "conda_prefix",
+            "from_conda": True,
+        },
+        "spades_py": {"status": "missing", "path": None, "version_text": None, "source": "missing", "from_conda": False},
+        "prodigal": {"status": "missing", "path": None, "version_text": None, "source": "missing", "from_conda": False},
+        "mmseqs": {"status": "missing", "path": None, "version_text": None, "source": "missing", "from_conda": False},
+        "temstapro": {"status": "missing", "path": None, "version_text": None, "source": "missing", "from_conda": False},
+    }
+    report["runtime"] = {
+        "data_root": {"status": "manual", "value": "__MANUAL__: choose final data directory"},
+        "runs_root": {"status": "candidate", "value": "/mnt/disk4/thermo-runs"},
+        "log_path": {"status": "candidate", "value": "/mnt/disk4/thermo-runs/platform.log"},
+    }
+    report["protrek"] = {
+        "python_bin": {"status": "missing", "path": None},
+        "repo_root": {"status": "missing", "path": None},
+        "weights_dir": {"status": "missing", "path": None},
+    }
+    report["foldseek"] = {
+        "base_url": {"status": "manual", "value": "__MANUAL__: set Foldseek service URL", "connectivity": "unknown"},
+    }
+
+    monkeypatch.setattr(probe, "collect_probe_report", lambda args: report)
+
+    exit_code = probe.main(["--output-dir", str(tmp_path), "--conda-prefix", "/envs/thermo"])
+
+    assert exit_code == 0
+    payload = json.loads((tmp_path / "server_probe.json").read_text(encoding="utf-8"))
+    assert payload["conda"]["resolved_prefix"] == "/envs/thermo"
+    assert payload["tools"]["fastp"]["source"] == "conda_prefix"
+    assert payload["tools"]["fastp"]["from_conda"] is True
+    summary_text = (tmp_path / "server_probe.txt").read_text(encoding="utf-8").lower()
+    assert "conda request: prefix" in summary_text
+    assert "conda resolved prefix: /envs/thermo" in summary_text
+    assert "fastp source: conda_prefix" in summary_text
+
+
 def test_build_initial_report_contains_metadata_and_manual_deployment(monkeypatch):
     probe = load_probe_module()
 
@@ -268,7 +331,7 @@ def test_main_writes_json_yaml_and_summary_bundle(monkeypatch, tmp_path):
         "base_url": {"status": "manual", "value": "__MANUAL__: set Foldseek service URL", "connectivity": "unknown"},
     }
 
-    monkeypatch.setattr(probe, "collect_probe_report", lambda: report)
+    monkeypatch.setattr(probe, "collect_probe_report", lambda args: report)
 
     exit_code = probe.main(["--output-dir", str(tmp_path)])
 

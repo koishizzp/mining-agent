@@ -39,11 +39,12 @@ thermo-mining run-job --run-dir runs/<run_id>
 
 ## Server Probe
 
-Run the standalone probe on the target Linux server before cloning or
-configuring this repository:
+Run the standalone probe on the target Linux server:
 
 ```bash
 python3 scripts/server_probe.py --output-dir ./thermo_server_probe
+python3 scripts/server_probe.py --output-dir ./thermo_server_probe --conda-prefix /abs/path/to/env
+python3 scripts/server_probe.py --output-dir ./thermo_server_probe --conda-name thermo
 ```
 
 The command writes:
@@ -51,3 +52,7 @@ The command writes:
 - `server_probe.json` - canonical structured artifact for later agent work
 - `platform.server-draft.yaml` - draft config matching this repo's config shape
 - `server_probe.txt` - short human-readable summary
+
+If a resolved Conda env does not contain a tool but the normal system `PATH`
+does, the probe records the `PATH` result and emits a warning instead of
+failing.

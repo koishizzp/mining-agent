@@ -294,9 +294,12 @@ def add_candidate_sections(report: dict[str, Any]) -> None:
         report["warnings"].append("Foldseek base URL remains manual because no local default candidate responded.")
 
 
-def collect_probe_report() -> dict[str, Any]:
+def collect_probe_report(args: argparse.Namespace) -> dict[str, Any]:
     report = build_initial_report()
-    report["tools"] = probe_tools()
+    conda = resolve_conda_target(args)
+    report["conda"] = conda
+    report["warnings"].extend(conda["notes"])
+    report["tools"] = probe_tools(conda, report["warnings"])
     add_candidate_sections(report)
     return report
 
@@ -372,9 +375,11 @@ def render_summary_text(report: dict[str, Any]) -> str:
         f"user: {report['metadata']['user']}",
         f"repo_root: {report['deployment']['repo_root']['status']}",
         f"config_path: {report['deployment']['config_path']['status']}",
-        f"tmux: {report['tools']['tmux']['status']}",
-        f"foldseek_base_url: {report['foldseek']['base_url']['status']}",
+        f"conda request: {report['conda']['requested_mode']}",
+        f"conda resolved prefix: {report['conda']['resolved_prefix']}",
     ]
+    for tool_name, tool_data in sorted(report["tools"].items()):
+        lines.append(f"{tool_name} source: {tool_data.get('source', tool_data.get('status'))}")
     if report["warnings"]:
         lines.append("warnings:")
         lines.extend(f"- {warning}" for warning in report["warnings"])
@@ -390,7 +395,7 @@ def write_probe_bundle(output_dir: Path, report: dict[str, Any]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    report = collect_probe_report()
+    report = collect_probe_report(args)
     write_probe_bundle(Path(args.output_dir), report)
     return 0
 
