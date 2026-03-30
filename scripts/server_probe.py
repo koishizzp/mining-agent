@@ -10,7 +10,10 @@ import socket
 import sys
 from datetime import datetime, timezone
 import subprocess
+from pathlib import Path
 from typing import Any
+from urllib.error import URLError
+from urllib.request import urlopen
 
 
 STATUS_VALUES = {"detected", "missing", "candidate", "manual"}
@@ -22,6 +25,28 @@ TOOL_COMMANDS = {
     "mmseqs": "mmseqs",
     "temstapro": "temstapro",
 }
+PROTREK_ROOT_CANDIDATES = [
+    Path("/srv/ProTrek"),
+    Path("/opt/ProTrek"),
+    Path("/mnt/disk1/ProTrek"),
+    Path("/mnt/disk2/ProTrek"),
+    Path("/mnt/disk3/ProTrek"),
+    Path("/mnt/disk4/ProTrek"),
+]
+PROTREK_PYTHON_CANDIDATES = [
+    Path("/opt/protrek/bin/python"),
+    Path("/srv/ProTrek/.venv/bin/python"),
+    Path("/usr/bin/python3"),
+]
+RUNTIME_DATA_CANDIDATES = [
+    Path("/mnt/disk2/thermo-inputs"),
+    Path("/mnt/disk3/thermo-inputs"),
+]
+RUNTIME_RUNS_CANDIDATES = [
+    Path("/mnt/disk4/thermo-runs"),
+    Path("/mnt/disk3/thermo-runs"),
+]
+FOLDSEEK_DEFAULT_URL = "http://127.0.0.1:8100"
 
 
 def _utc_now_iso() -> str:
@@ -88,6 +113,57 @@ def probe_tools() -> dict[str, dict[str, Any]]:
             version_text=capture_version_text(resolved),
         )
     return tools
+
+
+def _first_existing(paths: list[Path]) -> Path | None:
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
+def foldseek_candidate_reachable(url: str) -> bool:
+    try:
+        with urlopen(url, timeout=0.5):
+            return True
+    except (OSError, URLError):
+        return False
+
+
+def add_candidate_sections(report: dict[str, Any]) -> None:
+    protrek_root = _first_existing(PROTREK_ROOT_CANDIDATES)
+    protrek_python = _first_existing(PROTREK_PYTHON_CANDIDATES)
+    weights_dir = None if protrek_root is None else _first_existing([protrek_root / "weights" / "ProTrek_650M"])
+
+    report["protrek"] = {
+        "repo_root": probe_item("candidate", path=str(protrek_root)) if protrek_root else probe_item("missing", path=None),
+        "python_bin": probe_item("candidate", path=str(protrek_python)) if protrek_python else probe_item("missing", path=None),
+        "weights_dir": probe_item("candidate", path=str(weights_dir)) if weights_dir else probe_item("missing", path=None),
+    }
+
+    data_root = _first_existing(RUNTIME_DATA_CANDIDATES)
+    runs_root = _first_existing(RUNTIME_RUNS_CANDIDATES)
+    report["runtime"] = {
+        "data_root": probe_item("candidate", value=str(data_root)) if data_root else probe_item("manual", value="__MANUAL__: choose final data directory"),
+        "runs_root": probe_item("candidate", value=str(runs_root)) if runs_root else probe_item("manual", value="__MANUAL__: choose final runs directory"),
+        "log_path": probe_item("candidate", value=str(runs_root / "platform.log")) if runs_root else probe_item("manual", value="__MANUAL__: choose final log path"),
+    }
+
+    if foldseek_candidate_reachable(FOLDSEEK_DEFAULT_URL):
+        report["foldseek"] = {
+            "base_url": probe_item("candidate", value=FOLDSEEK_DEFAULT_URL, connectivity="reachable"),
+        }
+    else:
+        report["foldseek"] = {
+            "base_url": probe_item("manual", value="__MANUAL__: set Foldseek service URL", connectivity="unknown"),
+        }
+
+    if protrek_root is None:
+        report["warnings"].append("ProTrek repo root not found in the bounded candidate list.")
+    if runs_root is None:
+        report["warnings"].append("No candidate runs_root was found; choose one manually.")
+    if report["foldseek"]["base_url"]["status"] == "manual":
+        report["warnings"].append("Foldseek base URL remains manual because no local default candidate responded.")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

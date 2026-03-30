@@ -65,3 +65,39 @@ def test_probe_tools_marks_detected_and_missing(monkeypatch):
     assert tools["fastp"]["status"] == "detected"
     assert tools["temstapro"]["status"] == "missing"
     assert tools["temstapro"]["path"] is None
+
+
+def test_add_candidate_sections_records_protrek_runtime_and_foldseek(monkeypatch, tmp_path):
+    probe = load_probe_module()
+
+    protrek_root = tmp_path / "srv" / "ProTrek"
+    protrek_python = protrek_root / ".venv" / "bin" / "python"
+    weights_dir = protrek_root / "weights" / "ProTrek_650M"
+    data_root = tmp_path / "mnt" / "disk2" / "thermo-inputs"
+    runs_root = tmp_path / "mnt" / "disk4" / "thermo-runs"
+
+    protrek_python.parent.mkdir(parents=True)
+    weights_dir.mkdir(parents=True)
+    data_root.mkdir(parents=True)
+    runs_root.mkdir(parents=True)
+    protrek_python.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(probe, "PROTREK_ROOT_CANDIDATES", [protrek_root])
+    monkeypatch.setattr(probe, "PROTREK_PYTHON_CANDIDATES", [protrek_python])
+    monkeypatch.setattr(probe, "RUNTIME_DATA_CANDIDATES", [data_root])
+    monkeypatch.setattr(probe, "RUNTIME_RUNS_CANDIDATES", [runs_root])
+    monkeypatch.setattr(probe, "foldseek_candidate_reachable", lambda url: True)
+
+    report = probe.build_initial_report()
+    probe.add_candidate_sections(report)
+
+    assert report["protrek"]["repo_root"]["status"] == "candidate"
+    assert report["protrek"]["repo_root"]["path"] == str(protrek_root)
+    assert report["protrek"]["python_bin"]["path"] == str(protrek_python)
+    assert report["protrek"]["weights_dir"]["path"] == str(weights_dir)
+    assert report["runtime"]["data_root"]["value"] == str(data_root)
+    assert report["runtime"]["runs_root"]["value"] == str(runs_root)
+    assert report["runtime"]["log_path"]["value"] == str(runs_root / "platform.log")
+    assert report["foldseek"]["base_url"]["status"] == "candidate"
+    assert report["foldseek"]["base_url"]["value"] == "http://127.0.0.1:8100"
+    assert report["warnings"] == []
