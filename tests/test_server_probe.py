@@ -90,6 +90,66 @@ def test_resolve_conda_target_resolves_name_and_uses_active_env_fallback(monkeyp
     assert active["status"] == "detected"
 
 
+def test_probe_tools_prefers_resolved_conda_prefix(monkeypatch, tmp_path):
+    probe = load_probe_module()
+
+    env_prefix = tmp_path / "envs" / "thermo"
+    env_bin = env_prefix / "bin"
+    fastp_path = env_bin / "fastp"
+    env_bin.mkdir(parents=True)
+    fastp_path.write_text("", encoding="utf-8")
+
+    conda = {
+        "requested_mode": "prefix",
+        "requested_name": None,
+        "requested_prefix": str(env_prefix),
+        "resolved_prefix": str(env_prefix),
+        "active_prefix": None,
+        "active_env_name": None,
+        "status": "detected",
+        "notes": [],
+    }
+    warnings: list[str] = []
+
+    monkeypatch.setattr(probe.shutil, "which", lambda name: None)
+    monkeypatch.setattr(probe, "capture_version_text", lambda path: f"{Path(path).name} 1.0")
+
+    tools = probe.probe_tools(conda, warnings)
+
+    assert tools["fastp"]["path"] == str(fastp_path)
+    assert tools["fastp"]["source"] == "conda_prefix"
+    assert tools["fastp"]["from_conda"] is True
+    assert warnings == []
+
+
+def test_probe_tools_warns_when_tool_falls_back_outside_conda(monkeypatch, tmp_path):
+    probe = load_probe_module()
+
+    env_prefix = tmp_path / "envs" / "thermo"
+    env_prefix.mkdir(parents=True)
+    conda = {
+        "requested_mode": "prefix",
+        "requested_name": None,
+        "requested_prefix": str(env_prefix),
+        "resolved_prefix": str(env_prefix),
+        "active_prefix": None,
+        "active_env_name": None,
+        "status": "detected",
+        "notes": [],
+    }
+    warnings: list[str] = []
+
+    monkeypatch.setattr(probe.shutil, "which", lambda name: "/usr/bin/fastp" if name == "fastp" else None)
+    monkeypatch.setattr(probe, "capture_version_text", lambda path: None)
+
+    tools = probe.probe_tools(conda, warnings)
+
+    assert tools["fastp"]["path"] == "/usr/bin/fastp"
+    assert tools["fastp"]["source"] == "path"
+    assert tools["fastp"]["from_conda"] is False
+    assert any("fastp" in warning and "conda" in warning.lower() for warning in warnings)
+
+
 def test_build_initial_report_contains_metadata_and_manual_deployment(monkeypatch):
     probe = load_probe_module()
 

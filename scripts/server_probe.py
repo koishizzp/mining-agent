@@ -111,18 +111,53 @@ def capture_version_text(path: str) -> str | None:
     return None
 
 
-def probe_tools() -> dict[str, dict[str, Any]]:
+def _conda_tool_path(conda: dict[str, Any], command: str) -> tuple[str | None, str | None]:
+    resolved_prefix = conda.get("resolved_prefix")
+    if not resolved_prefix:
+        return None, None
+    candidate = Path(resolved_prefix) / "bin" / command
+    if candidate.exists():
+        if conda.get("requested_mode") == "active_env":
+            return str(candidate), "active_conda_env"
+        return str(candidate), "conda_prefix"
+    return None, None
+
+
+def probe_tools(conda: dict[str, Any] | None = None, warnings: list[str] | None = None) -> dict[str, dict[str, Any]]:
+    conda = conda or {}
+    warnings = warnings if warnings is not None else []
     tools: dict[str, dict[str, Any]] = {}
+    conda_resolved = conda.get("status") == "detected"
+
     for key, command in TOOL_COMMANDS.items():
+        conda_path, conda_source = _conda_tool_path(conda, command)
+        if conda_path is not None:
+            tools[key] = probe_item(
+                "detected",
+                path=conda_path,
+                version_text=capture_version_text(conda_path),
+                source=conda_source,
+                from_conda=True,
+            )
+            continue
+
         resolved = shutil.which(command)
         if resolved is None:
-            tools[key] = probe_item("missing", path=None, version_text=None)
+            tools[key] = probe_item("missing", path=None, version_text=None, source="missing", from_conda=False)
             continue
+
         tools[key] = probe_item(
             "detected",
             path=resolved,
             version_text=capture_version_text(resolved),
+            source="path",
+            from_conda=False,
         )
+        if conda_resolved:
+            warnings.append(
+                f"Tool `{command}` was not found inside the resolved Conda environment and fell back to PATH: {resolved}"
+            )
+
     return tools
 
 
