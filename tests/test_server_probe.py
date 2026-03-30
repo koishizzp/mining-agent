@@ -46,6 +46,50 @@ def test_build_initial_report_includes_manual_conda_section(monkeypatch):
     }
 
 
+def test_resolve_conda_target_prefers_explicit_prefix(monkeypatch):
+    probe = load_probe_module()
+
+    monkeypatch.setenv("CONDA_PREFIX", "/envs/active")
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", "active")
+    monkeypatch.setattr(probe, "path_exists", lambda path: str(path) == "/envs/thermo")
+    monkeypatch.setattr(probe, "load_conda_env_prefixes", lambda: ["/envs/other"])
+
+    args = probe.parse_args(["--conda-prefix", "/envs/thermo", "--conda-name", "other"])
+    conda = probe.resolve_conda_target(args)
+
+    assert conda["requested_mode"] == "prefix"
+    assert conda["requested_prefix"] == "/envs/thermo"
+    assert conda["requested_name"] is None
+    assert conda["resolved_prefix"] == "/envs/thermo"
+    assert conda["active_prefix"] == "/envs/active"
+    assert conda["active_env_name"] == "active"
+    assert conda["status"] == "detected"
+    assert conda["notes"] == []
+
+
+def test_resolve_conda_target_resolves_name_and_uses_active_env_fallback(monkeypatch):
+    probe = load_probe_module()
+
+    monkeypatch.delenv("CONDA_PREFIX", raising=False)
+    monkeypatch.delenv("CONDA_DEFAULT_ENV", raising=False)
+    monkeypatch.setattr(probe, "load_conda_env_prefixes", lambda: ["/opt/miniconda/envs/base", "/opt/miniconda/envs/thermo"])
+    monkeypatch.setattr(probe, "path_exists", lambda path: True)
+
+    named = probe.resolve_conda_target(probe.parse_args(["--conda-name", "thermo"]))
+    assert named["requested_mode"] == "name"
+    assert named["requested_name"] == "thermo"
+    assert named["resolved_prefix"] == "/opt/miniconda/envs/thermo"
+    assert named["status"] == "detected"
+
+    monkeypatch.setenv("CONDA_PREFIX", "/envs/active")
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", "active")
+    active = probe.resolve_conda_target(probe.parse_args([]))
+    assert active["requested_mode"] == "active_env"
+    assert active["resolved_prefix"] == "/envs/active"
+    assert active["active_env_name"] == "active"
+    assert active["status"] == "detected"
+
+
 def test_build_initial_report_contains_metadata_and_manual_deployment(monkeypatch):
     probe = load_probe_module()
 

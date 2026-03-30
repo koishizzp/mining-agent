@@ -133,6 +133,88 @@ def _first_existing(paths: list[Path]) -> Path | None:
     return None
 
 
+def path_exists(path: str | Path) -> bool:
+    return Path(path).exists()
+
+
+def load_conda_env_prefixes() -> list[str] | None:
+    try:
+        completed = subprocess.run(
+            ["conda", "env", "list", "--json"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=3,
+        )
+    except OSError:
+        return None
+    if completed.returncode != 0:
+        return None
+    try:
+        payload = json.loads(completed.stdout or "{}")
+    except json.JSONDecodeError:
+        return None
+    return [str(Path(item)) for item in payload.get("envs", [])]
+
+
+def _match_conda_name(prefixes: list[str], name: str) -> str | None:
+    for prefix in prefixes:
+        if Path(prefix).name == name:
+            return prefix
+    return None
+
+
+def resolve_conda_target(args: argparse.Namespace) -> dict[str, Any]:
+    active_prefix = os.environ.get("CONDA_PREFIX")
+    active_env_name = os.environ.get("CONDA_DEFAULT_ENV")
+    info = {
+        "requested_mode": "none",
+        "requested_name": None,
+        "requested_prefix": None,
+        "resolved_prefix": None,
+        "active_prefix": active_prefix,
+        "active_env_name": active_env_name,
+        "status": "manual",
+        "notes": [],
+    }
+
+    if args.conda_prefix:
+        info["requested_mode"] = "prefix"
+        info["requested_prefix"] = args.conda_prefix
+        if path_exists(args.conda_prefix):
+            info["resolved_prefix"] = args.conda_prefix
+            info["status"] = "detected"
+        else:
+            info["status"] = "missing"
+            info["notes"].append(f"Requested conda prefix was not found: {args.conda_prefix}")
+        return info
+
+    if args.conda_name:
+        info["requested_mode"] = "name"
+        info["requested_name"] = args.conda_name
+        prefixes = load_conda_env_prefixes()
+        if prefixes is None:
+            info["status"] = "missing"
+            info["notes"].append("Could not resolve conda name because `conda env list --json` was unavailable.")
+            return info
+        matched = _match_conda_name(prefixes, args.conda_name)
+        if matched is None:
+            info["status"] = "missing"
+            info["notes"].append(f"Requested conda env name was not found: {args.conda_name}")
+            return info
+        info["resolved_prefix"] = matched
+        info["status"] = "detected"
+        return info
+
+    if active_prefix:
+        info["requested_mode"] = "active_env"
+        info["resolved_prefix"] = active_prefix
+        info["status"] = "detected"
+        return info
+
+    return info
+
+
 def foldseek_candidate_reachable(url: str) -> bool:
     try:
         with urlopen(url, timeout=0.5):
