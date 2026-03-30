@@ -1,8 +1,6 @@
 # Thermo Mining
 
-## Scope
-
-本仓库实现 Phase 1 嗜热蛋白挖掘流水线，输入为 `proteins.faa` 和样本 metadata，输出为分层 shortlist。
+Phase 1 implements a thermophilic protein mining pipeline plus a thin single-user control plane.
 
 ## Stages
 
@@ -13,7 +11,7 @@
 5. `05_foldseek_confirm`
 6. `06_rerank`
 
-每个 stage 都遵循 `主输出 + scores.tsv + DONE.json` 的可恢复模式，便于断点续跑和审计。
+Each stage writes resumable artifacts such as primary outputs, `scores.tsv`, and `DONE.json`.
 
 ## Setup
 
@@ -23,8 +21,18 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-## Example
+## CLI
 
 ```bash
-thermo-mining run --config config/pipeline.example.yaml --run-name demo_run --input-faa inputs/demo.faa --resume
+thermo-mining run ...
+thermo-mining serve --config config/platform.example.yaml
+thermo-mining run-job --run-dir runs/<run_id>
 ```
+
+## Control Plane MVP
+
+- Single-user FastAPI console
+- Server-side path browsing
+- Plan review and confirm flow
+- One active tmux-backed run at a time
+- Artifacts and runtime status from `runtime_state.json`
