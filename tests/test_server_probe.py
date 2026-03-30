@@ -150,6 +150,32 @@ def test_probe_tools_warns_when_tool_falls_back_outside_conda(monkeypatch, tmp_p
     assert any("fastp" in warning and "conda" in warning.lower() for warning in warnings)
 
 
+def test_first_existing_skips_permission_errors(monkeypatch):
+    probe = load_probe_module()
+    restricted = Path("/restricted")
+    allowed = Path("/allowed")
+
+    def _fake_exists(self):
+        if self == restricted:
+            raise PermissionError("denied")
+        return self == allowed
+
+    monkeypatch.setattr(Path, "exists", _fake_exists, raising=False)
+
+    assert probe._first_existing([restricted, allowed]) == allowed
+
+
+def test_path_exists_returns_false_on_permission_error(monkeypatch):
+    probe = load_probe_module()
+
+    def _raise_permission_error(self):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "exists", _raise_permission_error, raising=False)
+
+    assert probe.path_exists("/restricted") is False
+
+
 def test_main_writes_conda_metadata_and_summary_lines(monkeypatch, tmp_path):
     probe = load_probe_module()
 

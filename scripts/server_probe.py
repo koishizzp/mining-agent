@@ -116,7 +116,7 @@ def _conda_tool_path(conda: dict[str, Any], command: str) -> tuple[str | None, s
     if not resolved_prefix:
         return None, None
     candidate = Path(resolved_prefix) / "bin" / command
-    if candidate.exists():
+    if _safe_exists(candidate):
         if conda.get("requested_mode") == "active_env":
             return str(candidate), "active_conda_env"
         return str(candidate), "conda_prefix"
@@ -161,15 +161,22 @@ def probe_tools(conda: dict[str, Any] | None = None, warnings: list[str] | None 
     return tools
 
 
+def _safe_exists(path: str | Path) -> bool:
+    try:
+        return Path(path).exists()
+    except OSError:
+        return False
+
+
 def _first_existing(paths: list[Path]) -> Path | None:
     for path in paths:
-        if path.exists():
+        if _safe_exists(path):
             return path
     return None
 
 
 def path_exists(path: str | Path) -> bool:
-    return Path(path).exists()
+    return _safe_exists(path)
 
 
 def load_conda_env_prefixes() -> list[str] | None:
