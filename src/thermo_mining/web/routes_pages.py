@@ -1,13 +1,13 @@
-from importlib.resources import files
-
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from importlib.resources import files
 
 
+templates = Jinja2Templates(directory=str(files("thermo_mining.web").joinpath("templates")))
 router = APIRouter()
 
 
 @router.get("/", response_class=HTMLResponse)
 def index(request: Request) -> HTMLResponse:
-    del request
-    return HTMLResponse(files("thermo_mining.web").joinpath("templates", "index.html").read_text(encoding="utf-8"))
+    return templates.TemplateResponse(request, "index.html")

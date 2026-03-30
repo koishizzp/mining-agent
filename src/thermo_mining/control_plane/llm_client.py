@@ -1,7 +1,4 @@
-def _load_openai_client():
-    from openai import OpenAI
-
-    return OpenAI
+from openai import OpenAI
 
 
 class OpenAIPlannerClient:
@@ -13,8 +10,7 @@ class OpenAIPlannerClient:
 
     def _get_client(self):
         if self.client is None:
-            openai_client = _load_openai_client()
-            self.client = openai_client(api_key=self.api_key, base_url=self.base_url)
+            self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         return self.client
 
     def plan(self, system_prompt: str, user_prompt: str) -> dict[str, object]:

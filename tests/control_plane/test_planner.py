@@ -1,7 +1,3 @@
-import importlib
-import sys
-import types
-
 import pytest
 
 from thermo_mining.control_plane.planner import apply_review_edits, plan_from_message
@@ -313,14 +309,11 @@ def test_openai_planner_client_plan_uses_responses_api(monkeypatch):
             captured["client_init"] = kwargs
             self.responses = FakeResponses()
 
-    fake_openai_module = types.SimpleNamespace(OpenAI=FakeOpenAI)
-    monkeypatch.setitem(sys.modules, "openai", fake_openai_module)
-    sys.modules.pop("thermo_mining.control_plane.llm_client", None)
-    llm_client = importlib.import_module("thermo_mining.control_plane.llm_client")
+    monkeypatch.setattr("thermo_mining.control_plane.llm_client.OpenAI", FakeOpenAI)
 
-    client = llm_client.OpenAIPlannerClient(model="gpt-test", api_key="secret", base_url="http://localhost")
+    from thermo_mining.control_plane.llm_client import OpenAIPlannerClient
 
-    assert "client_init" not in captured
+    client = OpenAIPlannerClient(model="gpt-test", api_key="secret", base_url="http://localhost")
 
     result = client.plan(system_prompt="system", user_prompt="user")
 

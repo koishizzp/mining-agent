@@ -5,21 +5,6 @@ body {
   color: #1e241d;
 }
 
-.page-header {
-  padding: 24px 16px 8px;
-}
-
-.page-header h1 {
-  margin: 0;
-}
-
-.eyebrow {
-  margin: 0 0 8px;
-  font-size: 0.8rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
 .layout {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
@@ -31,22 +16,10 @@ body {
   padding: 16px;
 }
 
-#chat-panel {
-  grid-area: chat;
-}
-
-#plan-panel {
-  grid-area: plan;
-}
-
-#run-panel {
-  grid-area: run;
-}
-
-#artifacts-panel {
-  grid-area: artifacts;
-}
-
+#chat-panel { grid-area: chat; }
+#plan-panel { grid-area: plan; }
+#run-panel { grid-area: run; }
+#artifacts-panel { grid-area: artifacts; }
 section,
 dialog {
   background: rgba(255, 255, 255, 0.72);
@@ -55,7 +28,6 @@ dialog {
   padding: 16px;
 }
 
-.panel-body,
 #file-browser-results {
   min-height: 96px;
   white-space: pre-wrap;

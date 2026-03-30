@@ -7,31 +7,16 @@
     <link rel="stylesheet" href="/static/console.css" />
   </head>
   <body>
-    <header class="page-header">
-      <p class="eyebrow">Control Plane MVP</p>
-      <h1>Thermo Mining Control Plane</h1>
-    </header>
+    <header><h1>Thermo Mining Control Plane</h1></header>
     <main class="layout">
-      <section id="chat-panel">
-        <h2>Chat</h2>
-        <div id="chat-thread" class="panel-body"></div>
-      </section>
-      <section id="plan-panel">
-        <h2>Plan Review</h2>
-        <div id="plan-review" class="panel-body"></div>
-      </section>
-      <section id="run-panel">
-        <h2>Run Monitor</h2>
-        <div id="run-monitor" class="panel-body">Loading active run...</div>
-      </section>
-      <section id="artifacts-panel">
-        <h2>Artifacts</h2>
-        <div id="artifact-list" class="panel-body"></div>
-      </section>
+      <section id="chat-panel"><h2>Chat</h2><div id="chat-thread"></div></section>
+      <section id="plan-panel"><h2>Plan Review</h2><div id="plan-review"></div></section>
+      <section id="run-panel"><h2>Run Monitor</h2><div id="run-monitor"></div></section>
+      <section id="artifacts-panel"><h2>Artifacts</h2><div id="artifact-list"></div></section>
     </main>
     <dialog id="file-browser-modal">
       <h2>Server Path Browser</h2>
-      <pre id="file-browser-results"></pre>
+      <div id="file-browser-results"></div>
       <button id="close-browser" type="button">Close</button>
     </dialog>
     <script src="/static/console.js"></script>

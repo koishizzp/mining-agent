@@ -78,12 +78,38 @@ def test_plan_endpoint_returns_structured_plan(monkeypatch):
     assert response.json()["assistant_message"] == "planned"
 
 
-def test_plan_endpoint_returns_422_for_invalid_body():
+def test_plan_endpoint_returns_422_for_invalid_body(monkeypatch):
     client = TestClient(create_app(), raise_server_exceptions=False)
 
     response = client.post("/api/plan", json={"message": "plan this"})
 
     assert response.status_code == 422
+
+
+def test_plan_endpoint_falls_back_without_llm_api_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("THERMO_LLM_API_KEY", raising=False)
+    client = TestClient(create_app(), raise_server_exceptions=False)
+
+    response = client.post(
+        "/api/plan",
+        json={
+            "message": "plan this",
+            "selected_bundles": [
+                {
+                    "bundle_type": "proteins",
+                    "sample_id": "S01",
+                    "input_paths": ["/mnt/disk2/S01.faa"],
+                    "metadata": {},
+                    "output_root": "/runs/S01",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["assistant_message"] == "Using the fallback planner for proteins"
+    assert response.json()["plan_warnings"][0] == "LLM output was invalid; fallback planning was used."
 
 
 def test_plan_endpoint_uses_dependency_override(monkeypatch):

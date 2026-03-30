@@ -25,8 +25,3 @@ window.addEventListener("load", () => {
   refreshActiveRun();
   window.setInterval(refreshActiveRun, 2000);
 });
-
-window.thermoConsole = {
-  openFileBrowser,
-  state,
-};

@@ -24,9 +24,9 @@ pip install -e ".[dev]"
 ## CLI
 
 ```bash
-thermo-mining run --config config/pipeline.example.yaml --run-name demo_run --input-faa inputs/demo.faa --resume
+thermo-mining run ...
 thermo-mining serve --config config/platform.example.yaml
-thermo-mining run-job --run-dir runs/run_001 --config config/platform.example.yaml
+thermo-mining run-job --run-dir runs/<run_id>
 ```
 
 ## Control Plane MVP
