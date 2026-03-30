@@ -203,6 +203,20 @@ def _match_conda_name(prefixes: list[str], name: str) -> str | None:
     for prefix in prefixes:
         if Path(prefix).name == name:
             return prefix
+    if name != "base":
+        return None
+
+    normalized = [(prefix, prefix.replace("\\", "/").rstrip("/")) for prefix in prefixes]
+    root_candidates: list[str] = []
+    for prefix, normalized_prefix in normalized:
+        nested_prefix = f"{normalized_prefix}/envs/"
+        if any(other.startswith(nested_prefix) for _, other in normalized if other != normalized_prefix):
+            root_candidates.append(prefix)
+
+    if len(root_candidates) == 1:
+        return root_candidates[0]
+    if len(prefixes) == 1:
+        return prefixes[0]
     return None
 
 
@@ -239,7 +253,10 @@ def resolve_conda_target(args: argparse.Namespace) -> dict[str, Any]:
             info["status"] = "missing"
             info["notes"].append("Could not resolve conda name because `conda env list --json` was unavailable.")
             return info
-        matched = _match_conda_name(prefixes, args.conda_name)
+        if active_env_name == args.conda_name and active_prefix:
+            matched = active_prefix
+        else:
+            matched = _match_conda_name(prefixes, args.conda_name)
         if matched is None:
             info["status"] = "missing"
             info["notes"].append(f"Requested conda env name was not found: {args.conda_name}")

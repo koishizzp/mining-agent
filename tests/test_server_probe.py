@@ -90,6 +90,42 @@ def test_resolve_conda_target_resolves_name_and_uses_active_env_fallback(monkeyp
     assert active["status"] == "detected"
 
 
+def test_resolve_conda_target_maps_base_name_to_root_prefix(monkeypatch):
+    probe = load_probe_module()
+
+    monkeypatch.delenv("CONDA_PREFIX", raising=False)
+    monkeypatch.delenv("CONDA_DEFAULT_ENV", raising=False)
+    monkeypatch.setattr(
+        probe,
+        "load_conda_env_prefixes",
+        lambda: ["/mnt/disk3/tio_nekton4/miniconda3", "/mnt/disk3/tio_nekton4/miniconda3/envs/thermo"],
+    )
+
+    conda = probe.resolve_conda_target(probe.parse_args(["--conda-name", "base"]))
+
+    assert conda["requested_mode"] == "name"
+    assert conda["requested_name"] == "base"
+    assert conda["resolved_prefix"] == "/mnt/disk3/tio_nekton4/miniconda3"
+    assert conda["status"] == "detected"
+
+
+def test_resolve_conda_target_uses_active_base_when_name_match_falls_through(monkeypatch):
+    probe = load_probe_module()
+
+    monkeypatch.setenv("CONDA_PREFIX", "/mnt/disk3/tio_nekton4/miniconda3")
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", "base")
+    monkeypatch.setattr(probe, "load_conda_env_prefixes", lambda: ["/mnt/disk3/other/envs/thermo"])
+
+    conda = probe.resolve_conda_target(probe.parse_args(["--conda-name", "base"]))
+
+    assert conda["requested_mode"] == "name"
+    assert conda["requested_name"] == "base"
+    assert conda["resolved_prefix"] == "/mnt/disk3/tio_nekton4/miniconda3"
+    assert conda["active_prefix"] == "/mnt/disk3/tio_nekton4/miniconda3"
+    assert conda["active_env_name"] == "base"
+    assert conda["status"] == "detected"
+
+
 def test_probe_tools_prefers_resolved_conda_prefix(monkeypatch, tmp_path):
     probe = load_probe_module()
 
