@@ -19,11 +19,21 @@ tools:
   spades_bin: /usr/bin/spades.py
   prodigal_bin: /usr/bin/prodigal
   mmseqs_bin: /usr/bin/mmseqs
+  conda_bin: /opt/miniconda/bin/conda
   temstapro_bin: /opt/temstapro/bin/temstapro
+  temstapro_conda_env_name: temstapro_env_CPU
+  temstapro_repo_root: /srv/TemStaPro-main
+  temstapro_model_dir: /srv/TemStaPro-main/models
+  temstapro_cache_dir: /srv/TemStaPro-main/cache
+  temstapro_hf_home: /srv/.cache/huggingface
+  temstapro_transformers_offline: true
   protrek_python_bin: /opt/protrek/bin/python
   protrek_repo_root: /srv/ProTrek
   protrek_weights_dir: /srv/ProTrek/weights/ProTrek_650M
-  foldseek_base_url: http://127.0.0.1:8100
+  colabfold_batch_bin: /opt/colabfold/bin/colabfold_batch
+  colabfold_data_dir: /srv/.cache/colabfold
+  foldseek_bin: /opt/foldseek/bin/foldseek
+  foldseek_database_path: /srv/foldseek/db/afdb50
   tmux_bin: /usr/bin/tmux
 
 defaults:
@@ -40,6 +50,8 @@ defaults:
     - heat-stable protein
   protrek_batch_size: 8
   protrek_top_k: 50
-  foldseek_database: afdb50
+  colabfold_msa_mode: single_sequence
+  colabfold_num_models: 1
+  colabfold_num_recycle: 1
   foldseek_topk: 5
   foldseek_min_tmscore: 0.6

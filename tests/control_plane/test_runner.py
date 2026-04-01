@@ -100,6 +100,15 @@ def test_run_job_executes_expected_stage_order_for_contigs(tmp_path, monkeypatch
         lambda **kwargs: calls.append("protrek") or {"protrek_scores_tsv": tmp_path / "protrek.tsv"},
     )
     monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_structure_predict_stage",
+        lambda **kwargs: calls.append("structure")
+        or {
+            "structure_manifest": [{"protein_id": "p1", "pdb_path": str(tmp_path / "05_structure" / "structures" / "p1.pdb")}],
+            "structure_manifest_json": tmp_path / "05_structure" / "structure_manifest.json",
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
         "thermo_mining.control_plane.runner.run_foldseek_stage",
         lambda **kwargs: calls.append("foldseek") or {"foldseek_scores_tsv": tmp_path / "foldseek.tsv"},
     )
@@ -108,7 +117,7 @@ def test_run_job_executes_expected_stage_order_for_contigs(tmp_path, monkeypatch
     run_job(record.run_dir)
 
     state = json.loads((tmp_path / record.run_id / "runtime_state.json").read_text(encoding="utf-8"))
-    assert calls == ["prodigal", "prefilter", "mmseqs", "temstapro", "protrek", "foldseek", "report"]
+    assert calls == ["prodigal", "prefilter", "mmseqs", "temstapro", "protrek", "structure", "foldseek", "report"]
     assert state["status"] == "succeeded"
 
 
@@ -154,6 +163,15 @@ def test_run_job_executes_expected_stage_order_for_paired_fastq(tmp_path, monkey
         lambda **kwargs: calls.append("protrek") or {"protrek_scores_tsv": tmp_path / "protrek.tsv"},
     )
     monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_structure_predict_stage",
+        lambda **kwargs: calls.append("structure")
+        or {
+            "structure_manifest": [{"protein_id": "p1", "pdb_path": str(tmp_path / "05_structure" / "structures" / "p1.pdb")}],
+            "structure_manifest_json": tmp_path / "05_structure" / "structure_manifest.json",
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
         "thermo_mining.control_plane.runner.run_foldseek_stage",
         lambda **kwargs: calls.append("foldseek") or {"foldseek_scores_tsv": tmp_path / "foldseek.tsv"},
     )
@@ -161,7 +179,7 @@ def test_run_job_executes_expected_stage_order_for_paired_fastq(tmp_path, monkey
 
     run_job(record.run_dir)
 
-    assert calls == ["fastp", "spades", "prodigal", "prefilter", "mmseqs", "temstapro", "protrek", "foldseek", "report"]
+    assert calls == ["fastp", "spades", "prodigal", "prefilter", "mmseqs", "temstapro", "protrek", "structure", "foldseek", "report"]
 
 
 def test_run_job_applies_overrides_and_builds_foldseek_manifest(tmp_path, monkeypatch):
@@ -203,6 +221,23 @@ def test_run_job_applies_overrides_and_builds_foldseek_manifest(tmp_path, monkey
         calls.append("protrek")
         return {"protrek_scores_tsv": tmp_path / "protrek.tsv"}
 
+    def fake_structure(**kwargs):
+        captured["structure"] = kwargs
+        calls.append("structure")
+        return {
+            "structure_manifest": [
+                {
+                    "protein_id": "p1",
+                    "pdb_path": str(Path(record.run_dir) / "05_structure" / "structures" / "p1.pdb"),
+                },
+                {
+                    "protein_id": "p2",
+                    "pdb_path": str(Path(record.run_dir) / "05_structure" / "structures" / "p2.pdb"),
+                },
+            ],
+            "structure_manifest_json": Path(record.run_dir) / "05_structure" / "structure_manifest.json",
+        }
+
     def fake_foldseek(**kwargs):
         captured["foldseek"] = kwargs
         calls.append("foldseek")
@@ -212,6 +247,7 @@ def test_run_job_applies_overrides_and_builds_foldseek_manifest(tmp_path, monkey
     monkeypatch.setattr("thermo_mining.control_plane.runner.run_mmseqs_cluster", fake_mmseqs)
     monkeypatch.setattr("thermo_mining.control_plane.runner.run_temstapro_screen", fake_temstapro)
     monkeypatch.setattr("thermo_mining.control_plane.runner.run_protrek_stage", fake_protrek)
+    monkeypatch.setattr("thermo_mining.control_plane.runner.run_structure_predict_stage", fake_structure, raising=False)
     monkeypatch.setattr("thermo_mining.control_plane.runner.run_foldseek_stage", fake_foldseek)
     _install_score_stubs(monkeypatch, tmp_path, calls)
 
@@ -223,16 +259,17 @@ def test_run_job_applies_overrides_and_builds_foldseek_manifest(tmp_path, monkey
     assert captured["temstapro"]["top_fraction"] == 0.25
     assert captured["temstapro"]["min_score"] == 0.73
     assert captured["protrek"]["top_k"] == 13
+    assert calls == ["prefilter", "mmseqs", "temstapro", "protrek", "structure", "foldseek", "report"]
     assert captured["foldseek"]["topk"] == 7
     assert captured["foldseek"]["min_tmscore"] == 0.88
     assert captured["foldseek"]["structure_manifest"] == [
         {
             "protein_id": "p1",
-            "pdb_path": str(Path(record.run_dir) / "05_foldseek" / "structures" / "p1.pdb"),
+            "pdb_path": str(Path(record.run_dir) / "05_structure" / "structures" / "p1.pdb"),
         },
         {
             "protein_id": "p2",
-            "pdb_path": str(Path(record.run_dir) / "05_foldseek" / "structures" / "p2.pdb"),
+            "pdb_path": str(Path(record.run_dir) / "05_structure" / "structures" / "p2.pdb"),
         },
     ]
 
@@ -266,6 +303,15 @@ def test_run_job_writes_reports_to_reports_directory(tmp_path, monkeypatch):
         lambda **kwargs: calls.append("protrek") or {"protrek_scores_tsv": tmp_path / "protrek.tsv"},
     )
     monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_structure_predict_stage",
+        lambda **kwargs: calls.append("structure")
+        or {
+            "structure_manifest": [{"protein_id": "p1", "pdb_path": str(tmp_path / "05_structure" / "structures" / "p1.pdb")}],
+            "structure_manifest_json": tmp_path / "05_structure" / "structure_manifest.json",
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
         "thermo_mining.control_plane.runner.run_foldseek_stage",
         lambda **kwargs: calls.append("foldseek") or {"foldseek_scores_tsv": tmp_path / "foldseek.tsv"},
     )
@@ -293,11 +339,21 @@ def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeyp
                 spades_bin="spades.py",
                 prodigal_bin="prodigal",
                 mmseqs_bin="/custom/mmseqs",
+                conda_bin="/custom/conda",
                 temstapro_bin="/custom/temstapro",
+                temstapro_conda_env_name="temstapro_env_CPU",
+                temstapro_repo_root=Path("/srv/custom-temstapro"),
+                temstapro_model_dir=Path("/srv/custom-temstapro/models"),
+                temstapro_cache_dir=Path("/srv/custom-temstapro/cache"),
+                temstapro_hf_home=Path("/srv/.cache/hf"),
+                temstapro_transformers_offline=True,
                 protrek_python_bin="/custom/python",
                 protrek_repo_root=Path("/srv/custom-protrek"),
                 protrek_weights_dir=Path("/srv/custom-protrek/weights"),
-                foldseek_base_url="http://foldseek.internal:9000",
+                colabfold_batch_bin="/custom/colabfold_batch",
+                colabfold_data_dir=Path("/srv/.cache/colabfold"),
+                foldseek_bin="/custom/foldseek",
+                foldseek_database_path=Path("/srv/foldseek/db/afdb50"),
             ),
             defaults=SimpleNamespace(
                 prefilter_min_length=111,
@@ -311,7 +367,9 @@ def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeyp
                 protrek_query_texts=("thermostable enzyme", "industrial catalyst"),
                 protrek_batch_size=5,
                 protrek_top_k=17,
-                foldseek_database="customdb",
+                colabfold_msa_mode="single_sequence",
+                colabfold_num_models=1,
+                colabfold_num_recycle=2,
                 foldseek_topk=9,
                 foldseek_min_tmscore=0.91,
             ),
@@ -340,6 +398,14 @@ def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeyp
         calls.append("protrek")
         return {"protrek_scores_tsv": tmp_path / "protrek.tsv"}
 
+    def fake_structure(**kwargs):
+        captured["structure"] = kwargs
+        calls.append("structure")
+        return {
+            "structure_manifest": [{"protein_id": "p1", "pdb_path": str(tmp_path / "05_structure" / "structures" / "p1.pdb")}],
+            "structure_manifest_json": tmp_path / "05_structure" / "structure_manifest.json",
+        }
+
     def fake_foldseek(**kwargs):
         captured["foldseek"] = kwargs
         calls.append("foldseek")
@@ -348,6 +414,7 @@ def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeyp
     monkeypatch.setattr("thermo_mining.control_plane.runner.run_mmseqs_cluster", fake_mmseqs)
     monkeypatch.setattr("thermo_mining.control_plane.runner.run_temstapro_screen", fake_temstapro)
     monkeypatch.setattr("thermo_mining.control_plane.runner.run_protrek_stage", fake_protrek)
+    monkeypatch.setattr("thermo_mining.control_plane.runner.run_structure_predict_stage", fake_structure, raising=False)
     monkeypatch.setattr("thermo_mining.control_plane.runner.run_foldseek_stage", fake_foldseek)
     _install_score_stubs(monkeypatch, tmp_path, calls)
 
@@ -360,7 +427,14 @@ def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeyp
     assert captured["mmseqs"]["min_seq_id"] == 0.77
     assert captured["mmseqs"]["coverage"] == 0.66
     assert captured["mmseqs"]["threads"] == 12
+    assert captured["temstapro"]["conda_bin"] == "/custom/conda"
     assert captured["temstapro"]["temstapro_bin"] == "/custom/temstapro"
+    assert captured["temstapro"]["conda_env_name"] == "temstapro_env_CPU"
+    assert captured["temstapro"]["repo_root"] == Path("/srv/custom-temstapro")
+    assert captured["temstapro"]["model_dir"] == Path("/srv/custom-temstapro/models")
+    assert captured["temstapro"]["cache_dir"] == Path("/srv/custom-temstapro/cache")
+    assert captured["temstapro"]["hf_home"] == Path("/srv/.cache/hf")
+    assert captured["temstapro"]["transformers_offline"] is True
     assert captured["temstapro"]["top_fraction"] == 0.31
     assert captured["temstapro"]["min_score"] == 0.61
     assert captured["protrek"]["python_bin"] == "/custom/python"
@@ -369,8 +443,13 @@ def test_run_job_uses_settings_derived_tool_and_default_values(tmp_path, monkeyp
     assert captured["protrek"]["query_texts"] == ["thermostable enzyme", "industrial catalyst"]
     assert captured["protrek"]["batch_size"] == 5
     assert captured["protrek"]["top_k"] == 17
-    assert captured["foldseek"]["base_url"] == "http://foldseek.internal:9000"
-    assert captured["foldseek"]["database"] == "customdb"
+    assert captured["structure"]["colabfold_batch_bin"] == "/custom/colabfold_batch"
+    assert captured["structure"]["colabfold_data_dir"] == Path("/srv/.cache/colabfold")
+    assert captured["structure"]["msa_mode"] == "single_sequence"
+    assert captured["structure"]["num_models"] == 1
+    assert captured["structure"]["num_recycle"] == 2
+    assert captured["foldseek"]["foldseek_bin"] == "/custom/foldseek"
+    assert captured["foldseek"]["database_path"] == Path("/srv/foldseek/db/afdb50")
     assert captured["foldseek"]["topk"] == 9
     assert captured["foldseek"]["min_tmscore"] == 0.91
 

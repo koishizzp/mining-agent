@@ -64,6 +64,7 @@ def test_build_stage_order_for_all_bundle_types():
         "mmseqs_cluster",
         "temstapro_screen",
         "protrek_recall",
+        "structure_predict",
         "foldseek_confirm",
         "rerank_report",
     ]
@@ -73,6 +74,7 @@ def test_build_stage_order_for_all_bundle_types():
         "mmseqs_cluster",
         "temstapro_screen",
         "protrek_recall",
+        "structure_predict",
         "foldseek_confirm",
         "rerank_report",
     ]
@@ -81,6 +83,7 @@ def test_build_stage_order_for_all_bundle_types():
         "mmseqs_cluster",
         "temstapro_screen",
         "protrek_recall",
+        "structure_predict",
         "foldseek_confirm",
         "rerank_report",
     ]
@@ -97,6 +100,7 @@ def test_build_stage_order_returns_non_shared_lists():
         "mmseqs_cluster",
         "temstapro_screen",
         "protrek_recall",
+        "structure_predict",
         "foldseek_confirm",
         "rerank_report",
     ]

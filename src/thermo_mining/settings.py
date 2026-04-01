@@ -32,6 +32,13 @@ def _env_float(env_data: dict[str, str], key: str, default: float) -> float:
     return float(value) if value is not None else default
 
 
+def _env_bool(env_data: dict[str, str], key: str, default: bool) -> bool:
+    value = env_data.get(key)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _env_path(env_data: dict[str, str], key: str, default: Path) -> Path:
     value = env_data.get(key)
     return Path(value) if value is not None else default
@@ -75,11 +82,21 @@ class ToolSettings:
     spades_bin: str = "spades.py"
     prodigal_bin: str = "prodigal"
     mmseqs_bin: str = "mmseqs"
+    conda_bin: str = "conda"
     temstapro_bin: str = "temstapro"
+    temstapro_conda_env_name: str = "temstapro_env_CPU"
+    temstapro_repo_root: Path = Path("/srv/TemStaPro-main")
+    temstapro_model_dir: Path = Path("/srv/TemStaPro-main/models")
+    temstapro_cache_dir: Path = Path("/srv/TemStaPro-main/cache")
+    temstapro_hf_home: Path = Path("/srv/.cache/huggingface")
+    temstapro_transformers_offline: bool = True
     protrek_python_bin: str = "python"
     protrek_repo_root: Path = Path("/srv/ProTrek")
     protrek_weights_dir: Path = Path("/srv/ProTrek/weights/ProTrek_650M")
-    foldseek_base_url: str = "http://127.0.0.1:8100"
+    colabfold_batch_bin: str = "colabfold_batch"
+    colabfold_data_dir: Path = Path("/srv/.cache/colabfold")
+    foldseek_bin: str = "foldseek"
+    foldseek_database_path: Path = Path("/srv/foldseek/db/afdb50")
     tmux_bin: str = "tmux"
 
 
@@ -98,7 +115,9 @@ class DefaultSettings:
     )
     protrek_batch_size: int = 8
     protrek_top_k: int = 50
-    foldseek_database: str = "afdb50"
+    colabfold_msa_mode: str = "single_sequence"
+    colabfold_num_models: int = 1
+    colabfold_num_recycle: int = 1
     foldseek_topk: int = 5
     foldseek_min_tmscore: float = 0.6
 
@@ -147,7 +166,39 @@ def load_settings(config_path: str | Path, env_path: str | Path | None = None) -
             spades_bin=_env_text(env_data, "THERMO_SPADES_BIN", str(tools_raw.get("spades_bin", "spades.py"))) or "spades.py",
             prodigal_bin=_env_text(env_data, "THERMO_PRODIGAL_BIN", str(tools_raw.get("prodigal_bin", "prodigal"))) or "prodigal",
             mmseqs_bin=_env_text(env_data, "THERMO_MMSEQS_BIN", str(tools_raw.get("mmseqs_bin", "mmseqs"))) or "mmseqs",
+            conda_bin=_env_text(env_data, "THERMO_CONDA_BIN", str(tools_raw.get("conda_bin", "conda"))) or "conda",
             temstapro_bin=_env_text(env_data, "THERMO_TEMSTAPRO_BIN", str(tools_raw.get("temstapro_bin", "temstapro"))) or "temstapro",
+            temstapro_conda_env_name=_env_text(
+                env_data,
+                "THERMO_TEMSTAPRO_CONDA_ENV_NAME",
+                str(tools_raw.get("temstapro_conda_env_name", "temstapro_env_CPU")),
+            )
+            or "temstapro_env_CPU",
+            temstapro_repo_root=_env_path(
+                env_data,
+                "THERMO_TEMSTAPRO_REPO_ROOT",
+                Path(tools_raw.get("temstapro_repo_root", "/srv/TemStaPro-main")),
+            ),
+            temstapro_model_dir=_env_path(
+                env_data,
+                "THERMO_TEMSTAPRO_MODEL_DIR",
+                Path(tools_raw.get("temstapro_model_dir", "/srv/TemStaPro-main/models")),
+            ),
+            temstapro_cache_dir=_env_path(
+                env_data,
+                "THERMO_TEMSTAPRO_CACHE_DIR",
+                Path(tools_raw.get("temstapro_cache_dir", "/srv/TemStaPro-main/cache")),
+            ),
+            temstapro_hf_home=_env_path(
+                env_data,
+                "THERMO_TEMSTAPRO_HF_HOME",
+                Path(tools_raw.get("temstapro_hf_home", "/srv/.cache/huggingface")),
+            ),
+            temstapro_transformers_offline=_env_bool(
+                env_data,
+                "THERMO_TEMSTAPRO_TRANSFORMERS_OFFLINE",
+                bool(tools_raw.get("temstapro_transformers_offline", True)),
+            ),
             protrek_python_bin=_env_text(
                 env_data,
                 "THERMO_PROTREK_PYTHON_BIN",
@@ -164,12 +215,28 @@ def load_settings(config_path: str | Path, env_path: str | Path | None = None) -
                 "THERMO_PROTREK_WEIGHTS_DIR",
                 Path(tools_raw.get("protrek_weights_dir", "/srv/ProTrek/weights/ProTrek_650M")),
             ),
-            foldseek_base_url=_env_text(
+            colabfold_batch_bin=_env_text(
                 env_data,
-                "THERMO_FOLDSEEK_BASE_URL",
-                str(tools_raw.get("foldseek_base_url", "http://127.0.0.1:8100")),
+                "THERMO_COLABFOLD_BATCH_BIN",
+                str(tools_raw.get("colabfold_batch_bin", "colabfold_batch")),
             )
-            or "http://127.0.0.1:8100",
+            or "colabfold_batch",
+            colabfold_data_dir=_env_path(
+                env_data,
+                "THERMO_COLABFOLD_DATA_DIR",
+                Path(tools_raw.get("colabfold_data_dir", "/srv/.cache/colabfold")),
+            ),
+            foldseek_bin=_env_text(
+                env_data,
+                "THERMO_FOLDSEEK_BIN",
+                str(tools_raw.get("foldseek_bin", "foldseek")),
+            )
+            or "foldseek",
+            foldseek_database_path=_env_path(
+                env_data,
+                "THERMO_FOLDSEEK_DATABASE_PATH",
+                Path(tools_raw.get("foldseek_database_path", "/srv/foldseek/db/afdb50")),
+            ),
             tmux_bin=_env_text(env_data, "THERMO_TMUX_BIN", str(tools_raw.get("tmux_bin", "tmux"))) or "tmux",
         ),
         defaults=DefaultSettings(
@@ -228,12 +295,22 @@ def load_settings(config_path: str | Path, env_path: str | Path | None = None) -
                 "THERMO_DEFAULT_PROTREK_TOP_K",
                 int(defaults_raw.get("protrek_top_k", 50)),
             ),
-            foldseek_database=_env_text(
+            colabfold_msa_mode=_env_text(
                 env_data,
-                "THERMO_DEFAULT_FOLDSEEK_DATABASE",
-                str(defaults_raw.get("foldseek_database", "afdb50")),
+                "THERMO_DEFAULT_COLABFOLD_MSA_MODE",
+                str(defaults_raw.get("colabfold_msa_mode", "single_sequence")),
             )
-            or "afdb50",
+            or "single_sequence",
+            colabfold_num_models=_env_int(
+                env_data,
+                "THERMO_DEFAULT_COLABFOLD_NUM_MODELS",
+                int(defaults_raw.get("colabfold_num_models", 1)),
+            ),
+            colabfold_num_recycle=_env_int(
+                env_data,
+                "THERMO_DEFAULT_COLABFOLD_NUM_RECYCLE",
+                int(defaults_raw.get("colabfold_num_recycle", 1)),
+            ),
             foldseek_topk=_env_int(
                 env_data,
                 "THERMO_DEFAULT_FOLDSEEK_TOPK",

@@ -28,7 +28,6 @@ tools:
   protrek_python_bin: /opt/protrek/bin/python
   protrek_repo_root: /srv/ProTrek
   protrek_weights_dir: /srv/ProTrek/weights/ProTrek_650M
-  foldseek_base_url: http://127.0.0.1:8100
 defaults:
   prefilter_min_length: 90
   prefilter_max_length: 1400
@@ -43,7 +42,6 @@ defaults:
     - heat-stable protein
   protrek_batch_size: 16
   protrek_top_k: 75
-  foldseek_database: swissprot
   foldseek_topk: 10
   foldseek_min_tmscore: 0.67
 """.strip(),
@@ -74,6 +72,7 @@ THERMO_DEFAULT_PROTREK_QUERY_TEXTS=thermostable enzyme,heat-shock protein
     assert settings.tools.fastp_bin == "/usr/bin/fastp"
     assert settings.tools.prodigal_bin == "/usr/bin/prodigal"
     assert settings.tools.mmseqs_bin == "/opt/mmseqs/bin/mmseqs"
+    assert not hasattr(settings.tools, "foldseek_base_url")
     assert settings.defaults.prefilter_min_length == 90
     assert settings.defaults.prefilter_max_length == 1400
     assert settings.defaults.prefilter_max_single_residue_fraction == 0.75
@@ -85,9 +84,75 @@ THERMO_DEFAULT_PROTREK_QUERY_TEXTS=thermostable enzyme,heat-shock protein
     assert settings.defaults.protrek_query_texts == ("thermostable enzyme", "heat-shock protein")
     assert settings.defaults.protrek_batch_size == 16
     assert settings.defaults.protrek_top_k == 75
-    assert settings.defaults.foldseek_database == "swissprot"
     assert settings.defaults.foldseek_topk == 10
     assert settings.defaults.foldseek_min_tmscore == 0.67
+
+
+def test_load_settings_reads_structure_runtime_fields_from_yaml_and_env(tmp_path):
+    config_path = tmp_path / "platform.yaml"
+    config_path.write_text(
+        """
+tools:
+  colabfold_batch_bin: /opt/colabfold/bin/colabfold_batch
+  colabfold_data_dir: /srv/.cache/colabfold
+  foldseek_bin: /opt/foldseek/bin/foldseek
+  foldseek_database_path: /srv/foldseek/db/afdb50
+defaults:
+  colabfold_msa_mode: single_sequence
+  colabfold_num_models: 1
+  colabfold_num_recycle: 2
+""".strip(),
+        encoding="utf-8",
+    )
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        """
+THERMO_COLABFOLD_BATCH_BIN=/custom/colabfold_batch
+THERMO_FOLDSEEK_DATABASE_PATH=/custom/foldseek/db
+THERMO_DEFAULT_COLABFOLD_NUM_RECYCLE=3
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(config_path, env_path=env_path)
+
+    assert settings.tools.colabfold_batch_bin == "/custom/colabfold_batch"
+    assert settings.tools.colabfold_data_dir == Path("/srv/.cache/colabfold")
+    assert settings.tools.foldseek_bin == "/opt/foldseek/bin/foldseek"
+    assert settings.tools.foldseek_database_path == Path("/custom/foldseek/db")
+    assert settings.defaults.colabfold_msa_mode == "single_sequence"
+    assert settings.defaults.colabfold_num_models == 1
+    assert settings.defaults.colabfold_num_recycle == 3
+
+
+def test_load_settings_ignores_deprecated_defaults_foldseek_database(tmp_path):
+    config_path = tmp_path / "platform.yaml"
+    config_path.write_text(
+        """
+defaults:
+  foldseek_database: legacy_db
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(config_path)
+
+    assert not hasattr(settings.defaults, "foldseek_database")
+
+
+def test_load_settings_ignores_deprecated_tools_foldseek_base_url(tmp_path):
+    config_path = tmp_path / "platform.yaml"
+    config_path.write_text(
+        """
+tools:
+  foldseek_base_url: http://127.0.0.1:8100
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(config_path)
+
+    assert not hasattr(settings.tools, "foldseek_base_url")
 
 
 def test_load_settings_prefers_process_env_over_env_file(tmp_path, monkeypatch):
@@ -100,6 +165,44 @@ def test_load_settings_prefers_process_env_over_env_file(tmp_path, monkeypatch):
     settings = load_settings(config_path, env_path=env_path)
 
     assert settings.llm.model == "gpt-5.1"
+
+
+def test_load_settings_reads_temstapro_runtime_fields_from_yaml_and_env(tmp_path):
+    config_path = tmp_path / "platform.yaml"
+    config_path.write_text(
+        """
+tools:
+  conda_bin: /opt/miniconda/bin/conda
+  temstapro_bin: /opt/temstapro/bin/temstapro
+  temstapro_conda_env_name: temstapro_cpu
+  temstapro_repo_root: /srv/TemStaPro-main
+  temstapro_model_dir: /srv/TemStaPro-main/models
+  temstapro_cache_dir: /srv/TemStaPro-main/cache
+  temstapro_hf_home: /srv/.cache/huggingface
+  temstapro_transformers_offline: false
+""".strip(),
+        encoding="utf-8",
+    )
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        """
+THERMO_CONDA_BIN=/custom/conda
+THERMO_TEMSTAPRO_CONDA_ENV_NAME=temstapro_env_CPU
+THERMO_TEMSTAPRO_TRANSFORMERS_OFFLINE=1
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(config_path, env_path=env_path)
+
+    assert settings.tools.conda_bin == "/custom/conda"
+    assert settings.tools.temstapro_bin == "/opt/temstapro/bin/temstapro"
+    assert settings.tools.temstapro_conda_env_name == "temstapro_env_CPU"
+    assert settings.tools.temstapro_repo_root == Path("/srv/TemStaPro-main")
+    assert settings.tools.temstapro_model_dir == Path("/srv/TemStaPro-main/models")
+    assert settings.tools.temstapro_cache_dir == Path("/srv/TemStaPro-main/cache")
+    assert settings.tools.temstapro_hf_home == Path("/srv/.cache/huggingface")
+    assert settings.tools.temstapro_transformers_offline is True
 
 
 def test_repo_no_longer_shadows_yaml_or_requests():

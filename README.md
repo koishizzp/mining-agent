@@ -6,10 +6,11 @@ Phase 1 implements a thermophilic protein mining pipeline plus a thin single-use
 
 1. `01_prefilter`
 2. `02_cluster`
-3. `03_thermo_screen`
-4. `04_protrek_recall`
-5. `05_foldseek_confirm`
-6. `06_rerank`
+3. `03_temstapro`
+4. `04_protrek`
+5. `05_structure`
+6. `06_foldseek`
+7. `07_report`
 
 Each stage writes resumable artifacts such as primary outputs, `scores.tsv`, and `DONE.json`.
 
@@ -28,6 +29,9 @@ thermo-mining run ...
 thermo-mining serve --config config/platform.example.yaml
 thermo-mining run-job --run-dir runs/<run_id>
 ```
+
+`thermo-mining run` and `thermo-mining serve` now use the same platform config
+shape from `config/platform.example.yaml`.
 
 ## Control Plane MVP
 

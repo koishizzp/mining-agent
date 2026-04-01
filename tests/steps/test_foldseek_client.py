@@ -1,40 +1,77 @@
-from thermo_mining.steps.foldseek_client import FoldseekClient, summarize_foldseek_hits
+from pathlib import Path
+
+from thermo_mining.steps.foldseek_client import build_foldseek_easy_search_command, run_foldseek_stage
 
 
-class DummyResponse:
-    def __init__(self, payload):
-        self.payload = payload
-
-    def raise_for_status(self):
-        return None
-
-    def json(self):
-        return self.payload
-
-
-def test_summarize_foldseek_hits_uses_best_tmscore():
-    score = summarize_foldseek_hits(
-        [
-            {"target": "hit1", "tmscore": 0.44},
-            {"target": "hit2", "tmscore": 0.81},
-        ]
+def test_build_foldseek_easy_search_command_uses_local_binary(tmp_path):
+    cmd = build_foldseek_easy_search_command(
+        foldseek_bin="/opt/foldseek/bin/foldseek",
+        query_pdb=tmp_path / "p1.pdb",
+        database_path=Path("/srv/foldseek/db/afdb50"),
+        output_tsv=tmp_path / "raw" / "p1.tsv",
+        tmp_dir=tmp_path / "tmp" / "p1",
+        topk=5,
     )
 
-    assert score == 0.81
+    assert cmd[:2] == ["/opt/foldseek/bin/foldseek", "easy-search"]
+    assert cmd[2] == str(tmp_path / "p1.pdb")
+    assert cmd[3] == "/srv/foldseek/db/afdb50"
+    assert "--format-output" in cmd
+    assert "--max-seqs" in cmd
 
 
-def test_foldseek_client_posts_search_request(monkeypatch):
-    sent = {}
+def test_run_foldseek_stage_filters_hits_by_min_tmscore(tmp_path, monkeypatch):
+    query_pdb = tmp_path / "structures" / "p1.pdb"
+    query_pdb.parent.mkdir(parents=True, exist_ok=True)
+    query_pdb.write_text("MODEL P1\n", encoding="utf-8")
 
-    def fake_post(url, json, timeout):
-        sent["url"] = url
-        sent["json"] = json
-        sent["timeout"] = timeout
-        return DummyResponse({"results": [{"target": "hit1", "tmscore": 0.66}]})
+    def fake_run(cmd, check):
+        output_tsv = Path(cmd[4])
+        output_tsv.parent.mkdir(parents=True, exist_ok=True)
+        output_tsv.write_text(
+            "query\thit_low\t0.55\nquery\thit_high\t0.81\n",
+            encoding="utf-8",
+        )
 
-    monkeypatch.setattr("requests.post", fake_post)
-    client = FoldseekClient(base_url="http://127.0.0.1:8100", timeout_seconds=30)
-    payload = client.search_structure("/tmp/p1.pdb", "afdb50", 5, 0.6)
+    monkeypatch.setattr("thermo_mining.steps.foldseek_client.subprocess.run", fake_run)
 
-    assert sent["url"].endswith("/search_structure")
-    assert payload["results"][0]["tmscore"] == 0.66
+    result = run_foldseek_stage(
+        structure_manifest=[{"protein_id": "p1", "pdb_path": str(query_pdb)}],
+        stage_dir=tmp_path / "06_foldseek",
+        foldseek_bin="/opt/foldseek/bin/foldseek",
+        database_path=Path("/srv/foldseek/db/afdb50"),
+        topk=5,
+        min_tmscore=0.6,
+        software_version="test",
+    )
+
+    assert result["foldseek_scores_tsv"] == tmp_path / "06_foldseek" / "scores.tsv"
+    assert "0.81" in (tmp_path / "06_foldseek" / "scores.tsv").read_text(encoding="utf-8")
+
+
+def test_run_foldseek_stage_returns_zero_when_no_hit_passes_threshold(tmp_path, monkeypatch):
+    query_pdb = tmp_path / "structures" / "p2.pdb"
+    query_pdb.parent.mkdir(parents=True, exist_ok=True)
+    query_pdb.write_text("MODEL P2\n", encoding="utf-8")
+
+    def fake_run(cmd, check):
+        output_tsv = Path(cmd[4])
+        output_tsv.parent.mkdir(parents=True, exist_ok=True)
+        output_tsv.write_text(
+            "query\thit_low\t0.40\n",
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr("thermo_mining.steps.foldseek_client.subprocess.run", fake_run)
+
+    run_foldseek_stage(
+        structure_manifest=[{"protein_id": "p2", "pdb_path": str(query_pdb)}],
+        stage_dir=tmp_path / "06_foldseek",
+        foldseek_bin="/opt/foldseek/bin/foldseek",
+        database_path=Path("/srv/foldseek/db/afdb50"),
+        topk=5,
+        min_tmscore=0.6,
+        software_version="test",
+    )
+
+    assert "0.0" in (tmp_path / "06_foldseek" / "scores.tsv").read_text(encoding="utf-8")

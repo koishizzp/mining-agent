@@ -1,5 +1,6 @@
 import csv
 import math
+import os
 import subprocess
 from pathlib import Path
 from time import perf_counter
@@ -8,24 +9,36 @@ from ..io_utils import read_fasta, sha256_file, write_done_json, write_fasta, wr
 from ..models import DoneRecord, ProteinRecord
 
 
+def _path_text(value: str | Path) -> str:
+    return value.as_posix() if isinstance(value, Path) else str(value)
+
+
 def build_temstapro_command(
     temstapro_bin: str,
     input_faa: str | Path,
     model_dir: str | Path,
     cache_dir: str | Path,
     output_tsv: str | Path,
+    conda_bin: str | None = None,
+    conda_env_name: str | None = None,
 ) -> list[str]:
-    return [
-        temstapro_bin,
-        "-f",
-        str(input_faa),
-        "-d",
-        str(model_dir),
-        "-e",
-        str(cache_dir),
-        "--mean-output",
-        str(output_tsv),
-    ]
+    cmd: list[str] = []
+    if conda_bin and conda_env_name:
+        cmd.extend([conda_bin, "run", "-n", conda_env_name])
+    cmd.extend(
+        [
+            temstapro_bin,
+            "-f",
+            _path_text(input_faa),
+            "-d",
+            _path_text(model_dir),
+            "-e",
+            _path_text(cache_dir),
+            "--mean-output",
+            _path_text(output_tsv),
+        ]
+    )
+    return cmd
 
 
 def derive_thermo_score(row: dict[str, str]) -> float:
@@ -59,17 +72,36 @@ def run_temstapro_screen(
     top_fraction: float,
     min_score: float,
     software_version: str,
+    conda_bin: str | None = None,
+    conda_env_name: str | None = None,
+    repo_root: str | Path | None = None,
+    hf_home: str | Path | None = None,
+    transformers_offline: bool = False,
     dry_run: bool = False,
 ) -> dict[str, Path] | list[str]:
     started = perf_counter()
     stage_dir = Path(stage_dir)
     stage_dir.mkdir(parents=True, exist_ok=True)
     raw_output = stage_dir / "temstapro_raw.tsv"
-    cmd = build_temstapro_command(temstapro_bin, input_faa, model_dir, cache_dir, raw_output)
+    cmd = build_temstapro_command(
+        temstapro_bin=temstapro_bin,
+        input_faa=input_faa,
+        model_dir=model_dir,
+        cache_dir=cache_dir,
+        output_tsv=raw_output,
+        conda_bin=conda_bin,
+        conda_env_name=conda_env_name,
+    )
     if dry_run:
         return cmd
 
-    subprocess.run(cmd, check=True)
+    env = os.environ.copy()
+    if hf_home is not None:
+        env["HF_HOME"] = _path_text(hf_home)
+    if transformers_offline:
+        env["TRANSFORMERS_OFFLINE"] = "1"
+
+    subprocess.run(cmd, check=True, cwd=Path(repo_root) if repo_root is not None else None, env=env)
 
     parsed_rows: list[dict[str, object]] = []
     with raw_output.open("r", encoding="utf-8", newline="") as handle:

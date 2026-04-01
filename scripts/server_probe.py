@@ -13,8 +13,6 @@ from datetime import datetime, timezone
 import subprocess
 from pathlib import Path
 from typing import Any
-from urllib.error import URLError
-from urllib.request import urlopen
 
 
 STATUS_VALUES = {"detected", "missing", "candidate", "manual"}
@@ -47,7 +45,17 @@ RUNTIME_RUNS_CANDIDATES = [
     Path("/mnt/disk4/thermo-runs"),
     Path("/mnt/disk3/thermo-runs"),
 ]
-FOLDSEEK_DEFAULT_URL = "http://127.0.0.1:8100"
+FOLDSEEK_BIN_CANDIDATES = [
+    Path("/opt/foldseek/bin/foldseek"),
+    Path("/srv/foldseek/bin/foldseek"),
+    Path("/mnt/disk3/foldseek/bin/foldseek"),
+    Path("/mnt/disk4/foldseek/bin/foldseek"),
+]
+FOLDSEEK_DATABASE_CANDIDATES = [
+    Path("/srv/foldseek/db/afdb50"),
+    Path("/mnt/disk3/foldseek/db/afdb50"),
+    Path("/mnt/disk4/foldseek/db/afdb50"),
+]
 
 
 def _utc_now_iso() -> str:
@@ -274,14 +282,6 @@ def resolve_conda_target(args: argparse.Namespace) -> dict[str, Any]:
     return info
 
 
-def foldseek_candidate_reachable(url: str) -> bool:
-    try:
-        with urlopen(url, timeout=0.5):
-            return True
-    except (OSError, URLError):
-        return False
-
-
 def add_candidate_sections(report: dict[str, Any]) -> None:
     protrek_root = _first_existing(PROTREK_ROOT_CANDIDATES)
     protrek_python = _first_existing(PROTREK_PYTHON_CANDIDATES)
@@ -301,21 +301,25 @@ def add_candidate_sections(report: dict[str, Any]) -> None:
         "log_path": probe_item("candidate", value=str(runs_root / "platform.log")) if runs_root else probe_item("manual", value="__MANUAL__: choose final log path"),
     }
 
-    if foldseek_candidate_reachable(FOLDSEEK_DEFAULT_URL):
-        report["foldseek"] = {
-            "base_url": probe_item("candidate", value=FOLDSEEK_DEFAULT_URL, connectivity="reachable"),
-        }
-    else:
-        report["foldseek"] = {
-            "base_url": probe_item("manual", value="__MANUAL__: set Foldseek service URL", connectivity="unknown"),
-        }
+    foldseek_bin = _first_existing(FOLDSEEK_BIN_CANDIDATES)
+    foldseek_database = _first_existing(FOLDSEEK_DATABASE_CANDIDATES)
+    report["foldseek"] = {
+        "bin_path": probe_item("candidate", path=str(foldseek_bin))
+        if foldseek_bin
+        else probe_item("manual", path="__MANUAL__: set Foldseek binary path"),
+        "database_path": probe_item("candidate", path=str(foldseek_database))
+        if foldseek_database
+        else probe_item("manual", path="__MANUAL__: set Foldseek database path"),
+    }
 
     if protrek_root is None:
         report["warnings"].append("ProTrek repo root not found in the bounded candidate list.")
     if runs_root is None:
         report["warnings"].append("No candidate runs_root was found; choose one manually.")
-    if report["foldseek"]["base_url"]["status"] == "manual":
-        report["warnings"].append("Foldseek base URL remains manual because no local default candidate responded.")
+    if report["foldseek"]["bin_path"]["status"] == "manual":
+        report["warnings"].append("Foldseek binary path remains manual because no local candidate was found.")
+    if report["foldseek"]["database_path"]["status"] == "manual":
+        report["warnings"].append("Foldseek database path remains manual because no local candidate was found.")
 
 
 def collect_probe_report(args: argparse.Namespace) -> dict[str, Any]:
@@ -368,7 +372,8 @@ def render_platform_yaml(report: dict[str, Any]) -> str:
         f"  protrek_python_bin: {_yaml_scalar(report['protrek']['python_bin'].get('path') or '__MANUAL__: set ProTrek python path')}",
         f"  protrek_repo_root: {_yaml_scalar(report['protrek']['repo_root'].get('path') or '__MANUAL__: set ProTrek repo root')}",
         f"  protrek_weights_dir: {_yaml_scalar(report['protrek']['weights_dir'].get('path') or '__MANUAL__: set ProTrek weights dir')}",
-        f"  foldseek_base_url: {_yaml_scalar(report['foldseek']['base_url'].get('value'))}",
+        f"  foldseek_bin: {_yaml_scalar(report['foldseek']['bin_path'].get('path'))}",
+        f"  foldseek_database_path: {_yaml_scalar(report['foldseek']['database_path'].get('path'))}",
         f"  tmux_bin: {_yaml_scalar(report['tools']['tmux'].get('path') or '__MANUAL__: set tmux path')}",
         "",
         "defaults:",
@@ -385,7 +390,6 @@ def render_platform_yaml(report: dict[str, Any]) -> str:
         "    - heat-stable protein",
         "  protrek_batch_size: 8",
         "  protrek_top_k: 50",
-        "  foldseek_database: afdb50",
         "  foldseek_topk: 5",
         "  foldseek_min_tmscore: 0.6",
     ]
