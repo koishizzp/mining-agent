@@ -61,6 +61,12 @@ defaults:
     - heat-stable protein
   protrek_batch_size: 8
   protrek_top_k: 50
+  seed_sequence_min_seq_id: 0.3
+  seed_sequence_coverage: 0.8
+  seed_sequence_topk_per_seed: 200
+  seed_structure_min_tmscore: 0.55
+  seed_structure_topk_per_seed: 200
+  seed_structure_max_targets: 500
   colabfold_msa_mode: single_sequence
   colabfold_num_models: 1
   colabfold_num_recycle: 1

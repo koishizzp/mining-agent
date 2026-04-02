@@ -32,6 +32,18 @@ STAGE_ORDERS: dict[BundleType, list[str]] = {
         "foldseek_confirm",
         "rerank_report",
     ],
+    "seeded_proteins": [
+        "prefilter",
+        "mmseqs_cluster",
+        "seed_sequence_recall",
+        "seed_structure_recall",
+        "seed_recall_merge",
+        "temstapro_screen",
+        "protrek_recall",
+        "structure_predict",
+        "foldseek_confirm",
+        "rerank_report",
+    ],
 }
 
 

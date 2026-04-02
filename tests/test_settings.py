@@ -125,6 +125,40 @@ THERMO_DEFAULT_COLABFOLD_NUM_RECYCLE=3
     assert settings.defaults.colabfold_num_recycle == 3
 
 
+def test_load_settings_reads_seeded_defaults_from_yaml_and_env(tmp_path):
+    config_path = tmp_path / "platform.yaml"
+    config_path.write_text(
+        """
+defaults:
+  seed_sequence_min_seq_id: 0.31
+  seed_sequence_coverage: 0.81
+  seed_sequence_topk_per_seed: 150
+  seed_structure_min_tmscore: 0.56
+  seed_structure_topk_per_seed: 160
+  seed_structure_max_targets: 450
+""".strip(),
+        encoding="utf-8",
+    )
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        """
+THERMO_DEFAULT_SEED_SEQUENCE_MIN_SEQ_ID=0.33
+THERMO_DEFAULT_SEED_STRUCTURE_TOPK_PER_SEED=220
+THERMO_DEFAULT_SEED_STRUCTURE_MAX_TARGETS=600
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = load_settings(config_path, env_path=env_path)
+
+    assert settings.defaults.seed_sequence_min_seq_id == 0.33
+    assert settings.defaults.seed_sequence_coverage == 0.81
+    assert settings.defaults.seed_sequence_topk_per_seed == 150
+    assert settings.defaults.seed_structure_min_tmscore == 0.56
+    assert settings.defaults.seed_structure_topk_per_seed == 220
+    assert settings.defaults.seed_structure_max_targets == 600
+
+
 def test_load_settings_ignores_deprecated_defaults_foldseek_database(tmp_path):
     config_path = tmp_path / "platform.yaml"
     config_path.write_text(

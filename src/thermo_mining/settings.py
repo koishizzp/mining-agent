@@ -115,6 +115,12 @@ class DefaultSettings:
     )
     protrek_batch_size: int = 8
     protrek_top_k: int = 50
+    seed_sequence_min_seq_id: float = 0.30
+    seed_sequence_coverage: float = 0.80
+    seed_sequence_topk_per_seed: int = 200
+    seed_structure_min_tmscore: float = 0.55
+    seed_structure_topk_per_seed: int = 200
+    seed_structure_max_targets: int = 500
     colabfold_msa_mode: str = "single_sequence"
     colabfold_num_models: int = 1
     colabfold_num_recycle: int = 1
@@ -294,6 +300,36 @@ def load_settings(config_path: str | Path, env_path: str | Path | None = None) -
                 env_data,
                 "THERMO_DEFAULT_PROTREK_TOP_K",
                 int(defaults_raw.get("protrek_top_k", 50)),
+            ),
+            seed_sequence_min_seq_id=_env_float(
+                env_data,
+                "THERMO_DEFAULT_SEED_SEQUENCE_MIN_SEQ_ID",
+                float(defaults_raw.get("seed_sequence_min_seq_id", 0.30)),
+            ),
+            seed_sequence_coverage=_env_float(
+                env_data,
+                "THERMO_DEFAULT_SEED_SEQUENCE_COVERAGE",
+                float(defaults_raw.get("seed_sequence_coverage", 0.80)),
+            ),
+            seed_sequence_topk_per_seed=_env_int(
+                env_data,
+                "THERMO_DEFAULT_SEED_SEQUENCE_TOPK_PER_SEED",
+                int(defaults_raw.get("seed_sequence_topk_per_seed", 200)),
+            ),
+            seed_structure_min_tmscore=_env_float(
+                env_data,
+                "THERMO_DEFAULT_SEED_STRUCTURE_MIN_TMSCORE",
+                float(defaults_raw.get("seed_structure_min_tmscore", 0.55)),
+            ),
+            seed_structure_topk_per_seed=_env_int(
+                env_data,
+                "THERMO_DEFAULT_SEED_STRUCTURE_TOPK_PER_SEED",
+                int(defaults_raw.get("seed_structure_topk_per_seed", 200)),
+            ),
+            seed_structure_max_targets=_env_int(
+                env_data,
+                "THERMO_DEFAULT_SEED_STRUCTURE_MAX_TARGETS",
+                int(defaults_raw.get("seed_structure_max_targets", 500)),
             ),
             colabfold_msa_mode=_env_text(
                 env_data,

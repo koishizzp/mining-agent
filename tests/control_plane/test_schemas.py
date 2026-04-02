@@ -32,6 +32,53 @@ def test_input_bundle_accepts_windows_absolute_paths():
     assert bundle.input_paths == [r"D:\data\S01.faa"]
 
 
+def test_seeded_bundle_accepts_single_target_and_seed_path():
+    bundle = InputBundle(
+        bundle_type="seeded_proteins",
+        sample_id="S01",
+        input_paths=["/mnt/disk2/S01.faa"],
+        seed_paths=["/mnt/disk2/seed.faa"],
+        metadata={},
+        output_root="/runs/S01",
+    )
+
+    assert bundle.input_paths == ["/mnt/disk2/S01.faa"]
+    assert bundle.seed_paths == ["/mnt/disk2/seed.faa"]
+
+
+@pytest.mark.parametrize(
+    ("input_paths", "seed_paths"),
+    [
+        ([], ["/mnt/disk2/seed.faa"]),
+        (["/mnt/disk2/S01.faa", "/mnt/disk2/S02.faa"], ["/mnt/disk2/seed.faa"]),
+        (["/mnt/disk2/S01.faa"], []),
+        (["/mnt/disk2/S01.faa"], ["/mnt/disk2/seed.faa", "/mnt/disk2/seed2.faa"]),
+    ],
+)
+def test_seeded_bundle_rejects_invalid_path_counts(input_paths, seed_paths):
+    with pytest.raises(ValidationError):
+        InputBundle(
+            bundle_type="seeded_proteins",
+            sample_id="S01",
+            input_paths=input_paths,
+            seed_paths=seed_paths,
+            metadata={},
+            output_root="/runs/S01",
+        )
+
+
+def test_non_seeded_bundles_reject_seed_paths():
+    with pytest.raises(ValidationError):
+        InputBundle(
+            bundle_type="proteins",
+            sample_id="S01",
+            input_paths=["/mnt/disk2/S01.faa"],
+            seed_paths=["/mnt/disk2/seed.faa"],
+            metadata={},
+            output_root="/runs/S01",
+        )
+
+
 def test_execution_plan_defaults_to_confirmation():
     bundle = InputBundle(
         bundle_type="proteins",
@@ -81,6 +128,18 @@ def test_build_stage_order_for_all_bundle_types():
     assert build_stage_order("proteins") == [
         "prefilter",
         "mmseqs_cluster",
+        "temstapro_screen",
+        "protrek_recall",
+        "structure_predict",
+        "foldseek_confirm",
+        "rerank_report",
+    ]
+    assert build_stage_order("seeded_proteins") == [
+        "prefilter",
+        "mmseqs_cluster",
+        "seed_sequence_recall",
+        "seed_structure_recall",
+        "seed_recall_merge",
         "temstapro_screen",
         "protrek_recall",
         "structure_predict",
