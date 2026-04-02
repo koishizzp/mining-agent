@@ -22,11 +22,12 @@ def _fallback_plan(message: str, bundles: list[InputBundle], warning: str | None
     }
 
 
-def _bundle_signature(bundle: InputBundle) -> tuple[str, str, tuple[str, ...], str]:
+def _bundle_signature(bundle: InputBundle) -> tuple[str, str, tuple[str, ...], tuple[str, ...], str]:
     return (
         bundle.bundle_type,
         bundle.sample_id,
         tuple(bundle.input_paths),
+        tuple(bundle.seed_paths),
         bundle.output_root,
     )
 
@@ -45,9 +46,12 @@ def _build_user_prompt(message: str, bundles: list[InputBundle]) -> str:
                 f"- bundle_type: {bundle.bundle_type}",
                 f"  sample_id: {bundle.sample_id}",
                 f"  input_paths: {input_paths}",
-                f"  output_root: {bundle.output_root}",
             ]
         )
+        if bundle.seed_paths:
+            seed_paths = ", ".join(bundle.seed_paths)
+            lines.append(f"  seed_paths: {seed_paths}")
+        lines.append(f"  output_root: {bundle.output_root}")
     return "\n".join(lines)
 
 

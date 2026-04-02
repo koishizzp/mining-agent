@@ -88,6 +88,40 @@ def test_plan_from_message_includes_bundle_context_in_prompt():
     assert "output_root: /runs/S01" in client.calls[0]["user_prompt"]
 
 
+def test_plan_from_message_includes_seed_paths_in_prompt():
+    bundles = [
+        InputBundle(
+            bundle_type="seeded_proteins",
+            sample_id="S01",
+            input_paths=["/mnt/disk2/S01.faa"],
+            seed_paths=["/mnt/disk2/S01_seed.faa"],
+            metadata={},
+            output_root="/runs/S01",
+        )
+    ]
+    client = FakeLLMClient(
+        {
+            "assistant_message": "Planned the seeded proteins flow",
+            "execution_plan": {
+                "bundle_type": "seeded_proteins",
+                "input_items": [bundles[0].model_dump()],
+                "stage_order": build_stage_order("seeded_proteins"),
+                "parameter_overrides": {},
+                "output_root": "/runs/S01",
+                "resume_policy": "if_possible",
+                "requires_confirmation": True,
+                "explanation": "Use the seeded proteins path",
+            },
+            "plan_warnings": [],
+        }
+    )
+
+    plan_from_message("run the seeded proteins file", bundles, client=client)
+
+    assert client.calls
+    assert "seed_paths: /mnt/disk2/S01_seed.faa" in client.calls[0]["user_prompt"]
+
+
 def test_plan_from_message_falls_back_when_llm_payload_is_invalid():
     bundle = InputBundle(
         bundle_type="proteins",
@@ -168,6 +202,47 @@ def test_plan_from_message_falls_back_when_llm_uses_unknown_inputs():
     )
 
     result = plan_from_message("run the proteins file", [bundle], client=client)
+
+    assert result["execution_plan"].input_items == [bundle]
+    assert result["plan_warnings"]
+
+
+def test_plan_from_message_falls_back_when_seed_paths_do_not_match():
+    bundle = InputBundle(
+        bundle_type="seeded_proteins",
+        sample_id="S01",
+        input_paths=["/mnt/disk2/S01.faa"],
+        seed_paths=["/mnt/disk2/S01_seed.faa"],
+        metadata={},
+        output_root="/runs/S01",
+    )
+    client = FakeLLMClient(
+        {
+            "assistant_message": "Planned the seeded proteins flow",
+            "execution_plan": {
+                "bundle_type": "seeded_proteins",
+                "input_items": [
+                    {
+                        "bundle_type": "seeded_proteins",
+                        "sample_id": "S01",
+                        "input_paths": ["/mnt/disk2/S01.faa"],
+                        "seed_paths": ["/mnt/disk2/other_seed.faa"],
+                        "metadata": {},
+                        "output_root": "/runs/S01",
+                    }
+                ],
+                "stage_order": build_stage_order("seeded_proteins"),
+                "parameter_overrides": {},
+                "output_root": "/runs/S01",
+                "resume_policy": "if_possible",
+                "requires_confirmation": True,
+                "explanation": "Use the seeded proteins path",
+            },
+            "plan_warnings": [],
+        }
+    )
+
+    result = plan_from_message("run the seeded proteins file", [bundle], client=client)
 
     assert result["execution_plan"].input_items == [bundle]
     assert result["plan_warnings"]
