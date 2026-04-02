@@ -5,3 +5,9 @@ __pycache__/
 runs/
 logs/
 local-models/
+alphafold_params_2022-12-06/
+stego_planes/
+thermo_server_probe/
+probe_thermo.sh
+bug.txt
+.codex-preserve-artifacts/
