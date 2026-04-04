@@ -6,7 +6,7 @@ import uvicorn
 
 from .control_plane import runner as control_plane_runner
 from .control_plane.run_store import clear_active_run_if_match
-from .pipeline import run_pipeline
+from .pipeline import run_pipeline, run_seeded_pipeline
 from .settings import load_settings
 
 
@@ -19,6 +19,13 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--run-name", required=True)
     run_parser.add_argument("--input-faa", required=True)
     run_parser.add_argument("--resume", action="store_true")
+
+    run_seeded_parser = subparsers.add_parser("run-seeded")
+    run_seeded_parser.add_argument("--config", required=True)
+    run_seeded_parser.add_argument("--run-name", required=True)
+    run_seeded_parser.add_argument("--seed-faa", required=True)
+    run_seeded_parser.add_argument("--target-faa", required=True)
+    run_seeded_parser.add_argument("--resume", action="store_true")
 
     serve_parser = subparsers.add_parser("serve")
     serve_parser.add_argument("--host", default=None)
@@ -60,6 +67,14 @@ def main(argv: list[str] | None = None) -> dict[str, object] | None:
     if args.command == "run-job":
         run_job(args.run_dir, args.config)
         return None
+    if args.command == "run-seeded":
+        return run_seeded_pipeline(
+            config_path=Path(args.config),
+            run_name=args.run_name,
+            seed_faa=Path(args.seed_faa),
+            target_faa=Path(args.target_faa),
+            resume=args.resume,
+        )
     if args.command != "run":
         return None
     return run_pipeline(
