@@ -21,6 +21,30 @@ def test_combine_stage_scores_merges_multiple_sources():
     assert combined[1]["tier"] in {"Tier 2", "Tier 3"}
 
 
+def test_combine_stage_scores_merges_seed_provenance_without_changing_formula():
+    combined = combine_stage_scores(
+        thermo_rows=[{"protein_id": "p1", "thermo_score": 0.9}],
+        protrek_rows=[{"protein_id": "p1", "protrek_score": 0.8}],
+        foldseek_rows=[{"protein_id": "p1", "foldseek_score": 0.6}],
+        hot_spring_ids={"p1"},
+        seed_rows=[
+            {
+                "target_id": "p1",
+                "seed_ids": "cas1;cas2",
+                "seed_channels": "both",
+                "best_sequence_score": 0.91,
+                "best_structure_score": 0.84,
+            }
+        ],
+    )
+
+    assert combined[0]["seed_ids"] == "cas1;cas2"
+    assert combined[0]["seed_channels"] == "both"
+    assert combined[0]["best_sequence_score"] == 0.91
+    assert combined[0]["best_structure_score"] == 0.84
+    assert combined[0]["final_score"] == 0.795
+
+
 def test_build_summary_markdown_reports_counts():
     markdown_text = build_summary_markdown(
         run_name="run_001",
@@ -61,3 +85,13 @@ def test_write_report_outputs_writes_ranked_artifacts(tmp_path):
     assert outputs["top_1000_tsv"].exists()
     assert outputs["summary_md"].exists()
     assert "p1" in outputs["summary_md"].read_text(encoding="utf-8")
+
+
+def test_write_report_outputs_writes_seed_columns_and_empty_headers(tmp_path):
+    outputs = write_report_outputs(tmp_path, "run_001", [])
+
+    top_100_text = outputs["top_100_tsv"].read_text(encoding="utf-8")
+    assert top_100_text.startswith(
+        "protein_id\tseed_ids\tseed_channels\tbest_sequence_score\tbest_structure_score\tthermo_score"
+    )
+    assert "Tier 1: 0" in outputs["summary_md"].read_text(encoding="utf-8")

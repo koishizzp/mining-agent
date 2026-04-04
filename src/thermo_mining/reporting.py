@@ -6,6 +6,10 @@ from .io_utils import write_scores_tsv
 
 REPORT_FIELDNAMES = [
     "protein_id",
+    "seed_ids",
+    "seed_channels",
+    "best_sequence_score",
+    "best_structure_score",
     "thermo_score",
     "protrek_score",
     "foldseek_score",
