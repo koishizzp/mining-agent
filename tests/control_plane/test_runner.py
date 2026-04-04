@@ -15,11 +15,13 @@ def _make_plan(
     input_paths: list[str],
     output_root: str,
     overrides: dict[str, object] | None = None,
+    seed_paths: list[str] | None = None,
 ) -> ExecutionPlan:
     bundle = InputBundle(
         bundle_type=bundle_type,
         sample_id="S01",
         input_paths=input_paths,
+        seed_paths=seed_paths or [],
         metadata={},
         output_root=output_root,
     )
@@ -472,3 +474,167 @@ def test_run_job_marks_runtime_state_failed_when_stage_raises(tmp_path, monkeypa
     assert state["status"] == "failed"
     assert state["active_stage"] == "prefilter"
     assert state["error_summary"] == "prefilter failed"
+
+
+def test_run_job_executes_seeded_stage_order(tmp_path, monkeypatch):
+    seed_faa = tmp_path / "seed.faa"
+    seed_faa.write_text(">cas1\nMSTNPKPQRK\n", encoding="utf-8")
+    target_faa = tmp_path / "targets.faa"
+    target_faa.write_text(">target1\nAAAAAA\n", encoding="utf-8")
+    plan = _make_plan(
+        "seeded_proteins",
+        [str(target_faa)],
+        "/runs/S01",
+        seed_paths=[str(seed_faa)],
+    )
+    record = create_pending_run(tmp_path, plan)
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_prefilter",
+        lambda **kwargs: calls.append("prefilter") or {"filtered_faa": target_faa},
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_mmseqs_cluster",
+        lambda **kwargs: calls.append("mmseqs") or {"cluster_rep_faa": target_faa},
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_seed_sequence_recall_stage",
+        lambda **kwargs: calls.append("seed_sequence") or {"sequence_hits_tsv": tmp_path / "sequence_hits.tsv"},
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_seed_structure_recall_stage",
+        lambda **kwargs: calls.append("seed_structure") or {"structure_hits_tsv": tmp_path / "structure_hits.tsv"},
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_seed_recall_merge_stage",
+        lambda **kwargs: calls.append("seed_merge")
+        or {
+            "seed_manifest_tsv": tmp_path / "seed_manifest.tsv",
+            "seeded_targets_faa": target_faa,
+            "seed_rows": [
+                {
+                    "target_id": "target1",
+                    "seed_ids": "cas1",
+                    "seed_channels": "both",
+                    "best_sequence_score": 0.9,
+                    "best_structure_score": 0.8,
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_temstapro_screen",
+        lambda **kwargs: (
+            calls.append("temstapro"),
+            (tmp_path / "hits.faa").write_text(">target1\nAAAAAA\n", encoding="utf-8"),
+            {"thermo_hits_faa": tmp_path / "hits.faa", "thermo_scores_tsv": tmp_path / "thermo.tsv"},
+        )[-1],
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_protrek_stage",
+        lambda **kwargs: calls.append("protrek") or {"protrek_scores_tsv": tmp_path / "protrek.tsv"},
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_structure_predict_stage",
+        lambda **kwargs: calls.append("structure")
+        or {
+            "structure_manifest": [{"protein_id": "target1", "pdb_path": str(tmp_path / "p1.pdb")}],
+            "structure_manifest_json": tmp_path / "structure_manifest.json",
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_foldseek_stage",
+        lambda **kwargs: calls.append("foldseek") or {"foldseek_scores_tsv": tmp_path / "foldseek.tsv"},
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner._read_scores_tsv",
+        lambda path: [{"protein_id": "target1", "thermo_score": "0.9", "protrek_score": "0.8", "foldseek_score": "0.7"}],
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.combine_stage_scores",
+        lambda **kwargs: [
+            {
+                "protein_id": "target1",
+                "seed_ids": "cas1",
+                "seed_channels": "both",
+                "best_sequence_score": 0.9,
+                "best_structure_score": 0.8,
+                "thermo_score": 0.9,
+                "protrek_score": 0.8,
+                "foldseek_score": 0.7,
+                "origin_bonus": 0.05,
+                "final_score": 0.82,
+                "tier": "Tier 1",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.write_report_outputs",
+        lambda stage_dir, *args, **kwargs: calls.append("report") or {"summary_md": tmp_path / "summary.md"},
+    )
+
+    run_job(record.run_dir)
+
+    assert calls == [
+        "prefilter",
+        "mmseqs",
+        "seed_sequence",
+        "seed_structure",
+        "seed_merge",
+        "temstapro",
+        "protrek",
+        "structure",
+        "foldseek",
+        "report",
+    ]
+
+
+def test_run_job_short_circuits_seeded_runs_when_no_seed_hits_survive(tmp_path, monkeypatch):
+    seed_faa = tmp_path / "seed.faa"
+    seed_faa.write_text(">cas1\nMSTNPKPQRK\n", encoding="utf-8")
+    target_faa = tmp_path / "targets.faa"
+    target_faa.write_text(">target1\nAAAAAA\n", encoding="utf-8")
+    plan = _make_plan(
+        "seeded_proteins",
+        [str(target_faa)],
+        "/runs/S01",
+        seed_paths=[str(seed_faa)],
+    )
+    record = create_pending_run(tmp_path, plan)
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_prefilter",
+        lambda **kwargs: calls.append("prefilter") or {"filtered_faa": target_faa},
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_mmseqs_cluster",
+        lambda **kwargs: calls.append("mmseqs") or {"cluster_rep_faa": target_faa},
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_seed_sequence_recall_stage",
+        lambda **kwargs: calls.append("seed_sequence") or {"sequence_hits_tsv": tmp_path / "sequence_hits.tsv"},
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_seed_structure_recall_stage",
+        lambda **kwargs: calls.append("seed_structure") or {"structure_hits_tsv": tmp_path / "structure_hits.tsv"},
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.run_seed_recall_merge_stage",
+        lambda **kwargs: calls.append("seed_merge")
+        or {
+            "seed_manifest_tsv": tmp_path / "seed_manifest.tsv",
+            "seeded_targets_faa": tmp_path / "seeded_targets.faa",
+            "seed_rows": [],
+        },
+    )
+    monkeypatch.setattr(
+        "thermo_mining.control_plane.runner.write_report_outputs",
+        lambda stage_dir, *args, **kwargs: calls.append("report") or {"summary_md": tmp_path / "summary.md"},
+    )
+
+    run_job(record.run_dir)
+
+    assert calls == ["prefilter", "mmseqs", "seed_sequence", "seed_structure", "seed_merge", "report"]

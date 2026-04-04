@@ -6,6 +6,7 @@ from pathlib import Path
 from thermo_mining import __version__
 from thermo_mining.control_plane.run_store import write_runtime_state
 from thermo_mining.control_plane.upstream_steps import run_fastp_stage, run_prodigal_stage, run_spades_stage
+from thermo_mining.io_utils import read_fasta
 from thermo_mining.pipeline import _read_scores_tsv
 from thermo_mining.reporting import write_report_outputs
 from thermo_mining.settings import PlatformSettings, load_settings
@@ -15,6 +16,9 @@ from thermo_mining.steps.mmseqs_cluster import run_mmseqs_cluster
 from thermo_mining.steps.prefilter import run_prefilter
 from thermo_mining.steps.protrek_bridge import run_protrek_stage
 from thermo_mining.steps.rerank import combine_stage_scores
+from thermo_mining.steps.seed_recall_merge import run_seed_recall_merge_stage
+from thermo_mining.steps.seed_sequence_recall import run_seed_sequence_recall_stage
+from thermo_mining.steps.seed_structure_recall import run_seed_structure_recall_stage
 from thermo_mining.steps.structure_predict import run_structure_predict_stage
 from thermo_mining.steps.temstapro_screen import run_temstapro_screen
 
@@ -65,7 +69,12 @@ def run_job(run_dir: str | Path) -> None:
     stage_order = list(plan["stage_order"])
     stage_dirs = build_stage_dirs(run_dir, stage_order)
     current_input = Path(bundle["input_paths"][0])
+    seed_input = Path(bundle["seed_paths"][0]) if bundle["bundle_type"] == "seeded_proteins" else None
     cleaned_reads: dict[str, Path] | None = None
+    sequence_result: dict[str, Path] | None = None
+    structure_recall_result: dict[str, Path] | None = None
+    seeded_merge_rows: list[dict[str, object]] = []
+    skip_downstream_for_empty_seeded_run = False
     thermo_result: dict[str, Path] | None = None
     protrek_result: dict[str, Path] | None = None
     structure_result: dict[str, object] | None = None
@@ -132,7 +141,74 @@ def run_job(run_dir: str | Path) -> None:
                     software_version=__version__,
                 )
                 current_input = Path(cluster_result["cluster_rep_faa"])
+            elif stage_name == "seed_sequence_recall":
+                if seed_input is None:
+                    raise RuntimeError("seed_sequence_recall stage requires a seed input")
+                sequence_result = run_seed_sequence_recall_stage(
+                    seed_faa=seed_input,
+                    target_faa=current_input,
+                    stage_dir=stage_dirs[stage_name],
+                    mmseqs_bin=settings.tools.mmseqs_bin,
+                    min_seq_id=float(
+                        _plan_override(plan, "seed_sequence_min_seq_id", settings.defaults.seed_sequence_min_seq_id)
+                    ),
+                    coverage=float(
+                        _plan_override(plan, "seed_sequence_coverage", settings.defaults.seed_sequence_coverage)
+                    ),
+                    topk_per_seed=int(
+                        _plan_override(
+                            plan,
+                            "seed_sequence_topk_per_seed",
+                            settings.defaults.seed_sequence_topk_per_seed,
+                        )
+                    ),
+                    threads=int(_plan_override(plan, "cluster_threads", settings.defaults.cluster_threads)),
+                    software_version=__version__,
+                )
+            elif stage_name == "seed_structure_recall":
+                if seed_input is None:
+                    raise RuntimeError("seed_structure_recall stage requires a seed input")
+                structure_recall_result = run_seed_structure_recall_stage(
+                    seed_faa=seed_input,
+                    cluster_rep_faa=current_input,
+                    stage_dir=stage_dirs[stage_name],
+                    colabfold_batch_bin=settings.tools.colabfold_batch_bin,
+                    colabfold_data_dir=settings.tools.colabfold_data_dir,
+                    foldseek_bin=settings.tools.foldseek_bin,
+                    msa_mode=str(settings.defaults.colabfold_msa_mode),
+                    num_models=int(settings.defaults.colabfold_num_models),
+                    num_recycle=int(settings.defaults.colabfold_num_recycle),
+                    min_tmscore=float(
+                        _plan_override(plan, "seed_structure_min_tmscore", settings.defaults.seed_structure_min_tmscore)
+                    ),
+                    topk_per_seed=int(
+                        _plan_override(
+                            plan,
+                            "seed_structure_topk_per_seed",
+                            settings.defaults.seed_structure_topk_per_seed,
+                        )
+                    ),
+                    max_targets=int(
+                        _plan_override(plan, "seed_structure_max_targets", settings.defaults.seed_structure_max_targets)
+                    ),
+                    software_version=__version__,
+                )
+            elif stage_name == "seed_recall_merge":
+                if sequence_result is None or structure_recall_result is None:
+                    raise RuntimeError("seed_recall_merge stage requires sequence and structure recall outputs")
+                merge_result = run_seed_recall_merge_stage(
+                    cluster_rep_faa=current_input,
+                    sequence_hits_tsv=sequence_result["sequence_hits_tsv"],
+                    structure_hits_tsv=structure_recall_result["structure_hits_tsv"],
+                    stage_dir=stage_dirs[stage_name],
+                    software_version=__version__,
+                )
+                seeded_merge_rows = list(merge_result["seed_rows"])
+                current_input = Path(merge_result["seeded_targets_faa"])
+                skip_downstream_for_empty_seeded_run = not seeded_merge_rows
             elif stage_name == "temstapro_screen":
+                if skip_downstream_for_empty_seeded_run:
+                    continue
                 thermo_result = run_temstapro_screen(
                     input_faa=current_input,
                     stage_dir=stage_dirs[stage_name],
@@ -150,6 +226,8 @@ def run_job(run_dir: str | Path) -> None:
                 )
                 current_input = Path(thermo_result["thermo_hits_faa"])
             elif stage_name == "protrek_recall":
+                if skip_downstream_for_empty_seeded_run:
+                    continue
                 protrek_result = run_protrek_stage(
                     input_faa=current_input,
                     stage_dir=stage_dirs[stage_name],
@@ -164,6 +242,8 @@ def run_job(run_dir: str | Path) -> None:
                     software_version=__version__,
                 )
             elif stage_name == "structure_predict":
+                if skip_downstream_for_empty_seeded_run:
+                    continue
                 structure_result = run_structure_predict_stage(
                     input_faa=current_input,
                     stage_dir=stage_dirs[stage_name],
@@ -175,6 +255,8 @@ def run_job(run_dir: str | Path) -> None:
                     software_version=__version__,
                 )
             elif stage_name == "foldseek_confirm":
+                if skip_downstream_for_empty_seeded_run:
+                    continue
                 if structure_result is None:
                     raise RuntimeError("foldseek_confirm stage requires structure outputs")
                 foldseek_result = run_foldseek_stage(
@@ -187,13 +269,22 @@ def run_job(run_dir: str | Path) -> None:
                     software_version=__version__,
                 )
             elif stage_name == "rerank_report":
+                if skip_downstream_for_empty_seeded_run:
+                    write_report_outputs(run_dir / "reports", run_dir.name, [])
+                    continue
                 if thermo_result is None or protrek_result is None or foldseek_result is None:
                     raise RuntimeError("rerank_report stage requires thermo, protrek, and foldseek outputs")
+                hot_spring_ids = (
+                    {record.protein_id for record in read_fasta(bundle["input_paths"][0])}
+                    if bundle["bundle_type"] == "seeded_proteins"
+                    else set()
+                )
                 combined_rows = combine_stage_scores(
                     thermo_rows=_read_scores_tsv(thermo_result["thermo_scores_tsv"]),
                     protrek_rows=_read_scores_tsv(protrek_result["protrek_scores_tsv"]),
                     foldseek_rows=_read_scores_tsv(foldseek_result["foldseek_scores_tsv"]),
-                    hot_spring_ids=set(),
+                    hot_spring_ids=hot_spring_ids,
+                    seed_rows=seeded_merge_rows,
                 )
                 write_report_outputs(run_dir / "reports", run_dir.name, combined_rows)
             else:
