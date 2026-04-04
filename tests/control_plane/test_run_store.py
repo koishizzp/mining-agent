@@ -47,6 +47,7 @@ def test_create_pending_run_writes_run_layout(tmp_path):
             "bundle_type": "proteins",
             "sample_id": "S01",
             "input_paths": ["/mnt/disk2/S01.faa"],
+            "seed_paths": [],
             "metadata": {},
             "output_root": "/runs/S01",
         }
