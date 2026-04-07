@@ -208,3 +208,102 @@ git pull origin main
 ```
 
 开始实现前建议先建新 worktree，而不是直接在 `main` 上改代码。
+
+## 2026-04-04 Session Addendum
+
+本次会话把 seeded mining implementation 从旧的 Task 3 停点一路补完并收口：
+
+- 在 `D:\mining-agent\.worktrees\feat-seeded-mining`
+  上完成了 Task 4 到 Task 7
+- Task 3 目标测试已由控制器亲自重跑：
+  - `pytest tests/steps/test_seed_sequence_recall.py -v`
+  - 观察结果：`2 passed`
+- 关键新增提交：
+  - `0bb09a4` `feat(seed-recall): add structure recall stage`
+  - `0c061a5` `feat(seed-recall): merge seed hits into reports`
+  - `f4cfa1f` `test(control-plane): expect seed paths in bundle manifest`
+  - `78bd90d` `feat(seed-pipeline): add seeded cli runtime`
+  - `9b1a59c` `feat(control-plane): run seeded protein jobs`
+
+随后执行了本地分支收尾：
+
+- 将 `feat/seeded-mining` fast-forward 合并回 `main`
+- 在根仓库 `D:\mining-agent` 上重跑：
+
+```bash
+pytest -q
+```
+
+观察结果：
+
+- `154 passed in 3.14s`
+
+并完成清理：
+
+- 已删除本地分支 `feat/seeded-mining`
+- 已移除 worktree `D:\mining-agent\.worktrees\feat-seeded-mining`
+
+当前真实停点：
+
+- seeded runtime 代码已经在本地 `main`
+- 本地 `main` 相对 `origin/main` 仍然 **ahead 9**
+- 还没有执行 `git push origin main`
+- 服务器 clone 还没有 `git pull`
+- 还没有做第一次服务器侧 seeded smoke test
+
+所以下次恢复时，不要再从旧 worktree 或 Task 4 继续编码；应直接从
+`D:\mining-agent` 的 `main` 继续，目标改为：
+
+1. `git push origin main`
+2. 在服务器 clone 上 `git pull origin main`
+3. 复核真实服务器配置与工具路径
+4. 跑第一次 seeded 模式试跑并检查产物
+
+## 2026-04-02 Session Addendum
+
+本次会话的实际实现工作没有在根 checkout 上继续，而是在下面这个独立
+worktree 中进行：
+
+- `D:\mining-agent\.worktrees\feat-seeded-mining`
+- branch: `feat/seeded-mining`
+
+这条实现线当前已经完成的提交有：
+
+- `5bca697` `feat(seeded): add seeded runtime contract`
+- `5eee6d2` `feat(planner): support seeded bundle prompts`
+- `a7e0c0a` `feat(seed-recall): add sequence recall stage`
+
+当前停点：
+
+- Task 1 已完成，且 spec review / code-quality review 都已过
+- Task 2 已完成，且 spec review / code-quality review 都已过
+- Task 3 的实现已经提交到 `a7e0c0a`
+- 但 Task 3 还**没有完成 review loop**
+  - 实现代理报告 `pytest tests/steps/test_seed_sequence_recall.py -v` 已通过
+  - 本会话控制器没有在停止前独立重跑这条 Task 3 测试
+  - Task 3 的 spec reviewer 在用户要求停止时被关停
+  - Task 3 的 code-quality review 还没开始
+- Task 4 到 Task 7 还没开始
+
+当前推荐恢复入口：
+
+1. 先进入 worktree：`D:\mining-agent\.worktrees\feat-seeded-mining`
+2. 先重跑：
+
+```bash
+pytest tests/steps/test_seed_sequence_recall.py -v
+```
+
+3. 先补完 Task 3 的 spec review 和 code-quality review
+4. 再继续 Task 4
+
+本次会话的详细 handoff 文档在：
+
+- `D:\mining-agent\docs\superpowers\2026-04-02-seeded-mining-implementation-handoff.md`
+
+注意：
+
+- 根仓库当前还有未跟踪的本地计划与 handoff 文档，不要误当成实现代码
+- 不要把 seeded 分支当成已经“可运行”或“可合并”
+- Task 1 的质量审查已经明确指出，真正让 seeded stage graph 可执行要等到
+  Task 7 的 runner 集成完成
